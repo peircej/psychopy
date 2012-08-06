@@ -22,6 +22,10 @@ from psychopy.constants import *
 
 canvasColor=[200,200,200]#in prefs? ;-)
 routineTimeColor=wx.Color(50,100,200, 200)
+nonSlipFill=wx.Color(150,200,150, 255)
+nonSlipEdge=wx.Color(0,100,0, 255)
+relTimeFill=wx.Color(200,150,150, 255)
+relTimeEdge=wx.Color(200,50,50, 255)
 routineFlowColor=wx.Color(200,150,150, 255)
 darkgrey=wx.Color(65,65,65, 255)
 white=wx.Color(255,255,255, 255)
@@ -154,6 +158,7 @@ class FlowPanel(wx.ScrolledWindow):
             self.pdc.RemoveId(id)
         self.entryPointPosList = []
         self.entryPointIDlist = []
+        self.gapsExcluded=[]
         self.draw()
         self.frame.SetStatusText("")
         self.btnInsertRoutine.SetLabel('Insert Routine')
@@ -250,15 +255,20 @@ class FlowPanel(wx.ScrolledWindow):
         x = self.getNearestGapPoint(0)
         self.drawEntryPoints([x])
     def setLoopPoint2(self, evt=None):
-        """Someone pushed the insert loop button.
-        Fetch the dialog
+        """We'ce got the location of the first point, waiting to get the second
         """
         self.mode='loopPoint2'
-        self.frame.SetStatusText('Click the other start/end for the loop')
+        self.frame.SetStatusText('Click the other end for the loop')
+        thisPos = self.entryPointPosList[0]
+        self.gapsExcluded=[thisPos]
+        self.gapsExcluded.extend(self.getGapPointsCrossingStreams(thisPos))
+        #is there more than one available point
         x = self.getNearestGapPoint(wx.GetMousePosition()[0]-self.GetScreenPosition()[0],
-            exclude=[self.entryPointPosList[0]])#exclude point 1
+            exclude=self.gapsExcluded)#exclude point 1, and
         self.drawEntryPoints([self.entryPointPosList[0], x])
-
+        nAvailableGaps= len(self.gapMidPoints)-len(self.gapsExcluded)
+        if nAvailableGaps==1:
+            self.insertLoop()#there's only one place - go ahead and insert it
     def insertLoop(self, evt=None):
         #bring up listbox to choose the routine to add and/or create a new one
         loopDlg = DlgLoopProperties(frame=self.frame,
@@ -389,9 +399,11 @@ class FlowPanel(wx.ScrolledWindow):
             if event.LeftDown():
                 self.insertLoop()
             else:#move spot if needed
-                point = self.getNearestGapPoint(mouseX=x)
+                point = self.getNearestGapPoint(mouseX=x, exclude=self.gapsExcluded)
                 self.drawEntryPoints([self.entryPointPosList[0], point])
     def getNearestGapPoint(self, mouseX, exclude=[]):
+        """Get gap that is nearest to a particular mouse location
+        """
         d=1000000000
         nearest=None
         for point in self.gapMidPoints:
@@ -400,6 +412,15 @@ class FlowPanel(wx.ScrolledWindow):
                 d=(point-mouseX)**2
                 nearest=point
         return nearest
+    def getGapPointsCrossingStreams(self,gapPoint):
+        """For a given gap point, identify the gap points that are
+        excluded by crossing a loop line
+        """
+        gapArray=numpy.array(self.gapMidPoints)
+        nestLevels=numpy.array(self.gapNestLevels)
+        thisLevel=nestLevels[gapArray==gapPoint]
+        invalidGaps= (gapArray[nestLevels!=thisLevel]).tolist()
+        return invalidGaps
     def showContextMenu(self, component, xy):
         menu = wx.Menu()
         for item in self.contextMenuItems:
@@ -411,26 +432,58 @@ class FlowPanel(wx.ScrolledWindow):
     def onContextSelect(self, event):
         """Perform a given action on the component chosen
         """
+        #get ID
         op = self.contextItemFromID[event.GetId()]
-        component=self.componentFromID[self._menuComponentID]
+        compID=self._menuComponentID #the ID is also the index to the element in the flow list
         flow = self.frame.exp.flow
+        component=flow[compID]
+        #if we have a Loop Initiator, remove the whole loop
+        if component.getType()=='LoopInitiator':
+            component = component.loop
         if op=='remove':
-            # remove name from namespace only if its a loop (which exists only in the flow)
-            if 'conditionsFile' in component.params.keys():
-                conditionsFile = component.params['conditionsFile'].val
-                if conditionsFile and conditionsFile not in ['None','']:
-                    _, fieldNames = data.importConditions(conditionsFile, returnFieldNames=True)
-                    for fname in fieldNames:
-                        self.frame.exp.namespace.remove(fname)
-                self.frame.exp.namespace.remove(component.params['name'].val)
-            flow.removeComponent(component, id=self._menuComponentID)
-            self.frame.addToUndoStack("removed %s from flow" %component.params['name'])
+            self.removeComponent(component, compID)
+            self.frame.addToUndoStack("remove %s from flow" %component.params['name'])
         if op=='rename':
             print 'rename is not implemented yet'
             #if component is a loop: DlgLoopProperties
             #elif comonent is a routine: DlgRoutineProperties
         self.draw()
         self._menuComponentID=None
+    def removeComponent(self, component, compID):
+        """Remove either a Routine or a Loop from the Flow
+        """
+        flow=self.frame.exp.flow
+        if component.getType()=='Routine':
+            #check whether this will cause a collapsed loop
+            #prev and next elements on flow are a loop init/end
+            prevIsLoop=nextIsLoop=False
+            if compID>0:#there is at least one preceding
+                prevIsLoop = (flow[compID-1]).getType()=='LoopInitiator'
+            if len(flow)>(compID+1):#there is at least one more compon
+                nextIsLoop = (flow[compID+1]).getType()=='LoopTerminator'
+            if prevIsLoop and nextIsLoop:
+                loop=flow[compID+1].loop#because flow[compID+1] is a terminator
+                warnDlg = dialogs.MessageDialog(parent=self.frame,
+                    message=u'The "%s" Loop is about to be deleted as well (by collapsing). OK to proceed?' %loop.params['name'],
+                    type='Warning', title='Impending Loop collapse')
+                resp=warnDlg.ShowModal()
+                if resp in [wx.ID_CANCEL, wx.ID_NO]:
+                    return#abort
+                elif resp==wx.ID_YES:
+                    #make some recursive calls to this same method until success
+                    self.removeComponent(loop, compID )#remove the loop first
+                    self.removeComponent(component, compID-1)#because the loop has been removed ID is now one less
+                    return #because we would have done the removal in final successful call
+        # remove name from namespace only if it's a loop (which exists only in the flow)
+        elif 'conditionsFile' in component.params.keys():
+            conditionsFile = component.params['conditionsFile'].val
+            if conditionsFile and conditionsFile not in ['None','']:
+                _, fieldNames = data.importConditions(conditionsFile, returnFieldNames=True)
+                for fname in fieldNames:
+                    self.frame.exp.namespace.remove(fname)
+            self.frame.exp.namespace.remove(component.params['name'].val)
+        #perform the actual removal
+        flow.removeComponent(component, id=compID)
 
     def OnPaint(self, event):
         # Create a buffered paint DC.  It will create the real
@@ -495,6 +548,7 @@ class FlowPanel(wx.ScrolledWindow):
         self.loops={}#NB the loop is itself the key!? and the value is further info about it
         nestLevel=0; maxNestLevel=0
         self.gapMidPoints=[currX-gap/2]
+        self.gapNestLevels=[0]
         for ii, entry in enumerate(expFlow):
             if entry.getType()=='LoopInitiator':
                 self.loops[entry.loop]={'init':currX,'nest':nestLevel, 'id':ii}#NB the loop is itself the dict key!?
@@ -507,6 +561,7 @@ class FlowPanel(wx.ScrolledWindow):
                 # just get currX based on text size, don't draw anything yet:
                 currX = self.drawFlowRoutine(pdc,entry, id=ii,pos=[currX,self.linePos[1]-10], draw=False)
             self.gapMidPoints.append(currX+gap/2)
+            self.gapNestLevels.append(nestLevel)
             pdc.SetId(lineId)
             pdc.SetPen(wx.Pen(wx.Color(0,0,0, 255)))
             pdc.DrawLine(x1=currX,y1=self.linePos[1],x2=currX+gap,y2=self.linePos[1])
@@ -634,7 +689,7 @@ class FlowPanel(wx.ScrolledWindow):
         else:
             dc.DrawPolygon([[size,0],[0,size],[-size,0]], pos[0],pos[1]-4*size)#points down
         dc.SetIdBounds(tmpId,wx.Rect(pos[0]-size,pos[1]-size,2*size,2*size))
-    def drawFlowRoutine(self,dc,routine,id, rgb=[200,50,50],pos=[0,0], draw=True):
+    def drawFlowRoutine(self,dc,routine,id,pos=[0,0], draw=True):
         """Draw a box to show a routine on the timeline
         draw=False is for a dry-run, esp to compute and return size information without drawing or setting a pdc ID
         """
@@ -655,7 +710,14 @@ class FlowPanel(wx.ScrolledWindow):
         else:
             fontSizeDelta = (8,4,0)[self.appData['flowSize']]
             font.SetPointSize(1000/self.dpi-fontSizeDelta)
-        r, g, b = rgb
+
+        maxTime,nonSlip=routine.getMaxTime()
+        if nonSlip:
+            rgbFill=nonSlipFill
+            rgbEdge=nonSlipEdge
+        else:
+            rgbFill=relTimeFill
+            rgbEdge=relTimeEdge
 
         #get size based on text
         self.SetFont(font)
@@ -668,13 +730,17 @@ class FlowPanel(wx.ScrolledWindow):
         endX = pos[0]+w+pad
         #the edge should match the text
         if draw:
-            dc.SetPen(wx.Pen(wx.Color(r, g, b, wx.ALPHA_OPAQUE)))
-            #for the fill, draw once in white near-opaque, then in transp color
-            dc.SetBrush(wx.Brush(routineFlowColor))
+            dc.SetPen(wx.Pen(wx.Color(rgbEdge[0],rgbEdge[1],rgbEdge[2], wx.ALPHA_OPAQUE)))
+            dc.SetBrush(wx.Brush(rgbFill))
             dc.DrawRoundedRectangleRect(rect, (4,6,8)[self.appData['flowSize']])
             #draw text
-            dc.SetTextForeground(rgb)
-            dc.DrawText(name, pos[0]+pad/2, pos[1]+pad/2)
+            dc.SetTextForeground(rgbEdge)
+            dc.DrawLabel(name, rect, alignment = wx.ALIGN_CENTRE)
+            if nonSlip and self.appData['flowSize']!=0:
+                font.SetPointSize(font.GetPointSize()*0.6)
+                dc.SetFont(font)
+                dc.DrawLabel("(%.2fs)" %maxTime,
+                    rect, alignment = wx.ALIGN_CENTRE|wx.ALIGN_BOTTOM)
 
             self.componentFromID[id]=routine
             #set the area for this component
@@ -945,7 +1011,7 @@ class RoutineCanvas(wx.ScrolledWindow):
     def drawTimeGrid(self, dc, yPosTop, yPosBottom, labelAbove=True):
         """Draws the grid of lines and labels the time axes
         """
-        tMax=self.getMaxTime()*1.1
+        tMax=self.routine.getMaxTime()[0]*1.1
         xScale = self.getSecsPerPixel()
         xSt=self.timeXposStart
         xEnd=self.timeXposEnd
@@ -1006,7 +1072,7 @@ class RoutineCanvas(wx.ScrolledWindow):
         fullRect.Union(wx.Rect(x-20,y,w,h))
 
         #deduce start and stop times if possible
-        startTime, duration = self.getStartAndDuration(component)
+        startTime, duration, nonSlipSafe = component.getStartAndDuration()
         #draw entries on timeline (if they have some time definition)
         if startTime!=None and duration!=None:#then we can draw a sensible time bar!
             xScale = self.getSecsPerPixel()
@@ -1031,6 +1097,8 @@ class RoutineCanvas(wx.ScrolledWindow):
         if hasattr(component, 'url'):helpUrl=component.url
         else:helpUrl=None
         old_name = component.params['name'].val
+        #check current timing settings of component (if it changes we need to update views)
+        timings = component.getStartAndDuration()
         #create the dialog
         dlg = DlgComponentProperties(frame=self.frame,
             title=component.params['name'].val+' Properties',
@@ -1038,59 +1106,17 @@ class RoutineCanvas(wx.ScrolledWindow):
             order = component.order,
             helpUrl=helpUrl, editing=True)
         if dlg.OK:
-            self.redrawRoutine()#need to refresh timings section
-            self.Refresh()#then redraw visible
+            if component.getStartAndDuration() != timings:
+                self.redrawRoutine()#need to refresh timings section
+                self.Refresh()#then redraw visible
+                self.frame.flowPanel.draw()
+#                self.frame.flowPanel.Refresh()
             self.frame.exp.namespace.remove(old_name)
             self.frame.exp.namespace.add(component.params['name'].val)
             self.frame.addToUndoStack("edit %s" %component.params['name'])
 
     def getSecsPerPixel(self):
-        return float(self.getMaxTime())/(self.timeXposEnd-self.timeXposStart)
-    def getMaxTime(self):
-        """What the last (predetermined) stimulus time to be presented. If
-        there are no components or they have code-based times then will default
-        to 10secs
-        """
-        maxTime=0
-        for n, component in enumerate(self.routine):
-            if component.params.has_key('startType'):
-                start, duration = self.getStartAndDuration(component)
-                if duration==FOREVER:
-                    continue#this shouldn't control the end of the time grid
-                try:thisT=start+duration#will fail if either value is not defined
-                except:thisT=0
-                maxTime=max(maxTime,thisT)
-        if maxTime==0:#if there are no components
-            maxTime=10
-        return maxTime
-    def getStartAndDuration(self, component):
-        """Determine the start and duration of the stimulus
-        purely for Routine rendering purposes in the app (does not affect
-        actual drawing during the experiment)
-        """
-        if not component.params.has_key('startType'):
-            return None, None#this component does not have any start/stop
-        startType=component.params['startType'].val
-        stopType=component.params['stopType'].val
-        #deduce a start time (s) if possible
-        #user has given a time estimate
-        if canBeNumeric(component.params['startEstim'].val):
-            startTime=float(component.params['startEstim'].val)
-        elif startType=='time (s)' and canBeNumeric(component.params['startVal'].val):
-            startTime=float(component.params['startVal'].val)
-        else: startTime=None
-        #deduce duration (s) if possible. Duration used because box needs width
-        if canBeNumeric(component.params['durationEstim'].val):
-            duration=float(component.params['durationEstim'].val)
-        elif component.params['stopVal'].val in ['','-1','None']:
-            duration=FOREVER#infinite duration
-        elif stopType=='time (s)' and canBeNumeric(component.params['stopVal'].val):
-            duration=float(component.params['stopVal'].val)-startTime
-        elif stopType=='duration (s)' and canBeNumeric(component.params['stopVal'].val):
-            duration=float(component.params['stopVal'].val)
-        else:
-            duration=None
-        return startTime, duration
+        return float(self.routine.getMaxTime()[0])/(self.timeXposEnd-self.timeXposStart)
 
 class RoutinesNotebook(wx.aui.AuiNotebook):
     """A notebook that stores one or more routines
@@ -1193,9 +1219,10 @@ class ComponentsPanel(scrolledpanel.ScrolledPanel):
             self.sizer=wx.FlexGridSizer(cols=2)
         # add a button for each type of event that can be added
         self.componentButtons={}; self.componentFromID={}
-        self.components=experiment.getAllComponents()
+        self.components=experiment.getAllComponents(self.app.prefs.builder['componentsFolders'])
         for hiddenComp in self.frame.prefs['hiddenComponents']:
-            del self.components[hiddenComp]
+            if hiddenComp in self.components:
+                del self.components[hiddenComp]
         del self.components['SettingsComponent']#also remove settings - that's in toolbar not components panel
         for thisName in self.components.keys():
             #NB thisComp is a class - we can't use its methods until it is an instance
@@ -1267,6 +1294,7 @@ class ParamCtrls:
         by the calling dlg.
 
         e.g.::
+
             param = experiment.Param(val='boo', valType='str')
             ctrls=ParamCtrls(dlg=self, label=fieldName,param=param)
             self.paramCtrls[fieldName] = ctrls #keep track of them in the dlg
@@ -1294,12 +1322,12 @@ class ParamCtrls:
 
         if type(param.val)==numpy.ndarray:
             initial=initial.tolist() #convert numpy arrays to lists
-        labelLength = wx.Size(self.dpi*2,self.dpi/3)#was 8*until v0.91.4
+        labelLength = wx.Size(self.dpi*2,self.dpi*2/3)#was 8*until v0.91.4
         if param.valType == 'code' and label != 'name':
             displayLabel = label+' $'
         else:
             displayLabel = label
-        self.nameCtrl = wx.StaticText(parent,-1,displayLabel,size=labelLength,
+        self.nameCtrl = wx.StaticText(parent,-1,displayLabel,size=None,
                                         style=wx.ALIGN_RIGHT)
 
         if label in ['text', 'customize_everything']:
@@ -1336,6 +1364,8 @@ class ParamCtrls:
             if label in ['allowedKeys', 'image', 'movie', 'scaleDescription', 'sound', 'Begin Routine']:
                 self.valueCtrl.SetFocus()
         self.valueCtrl.SetToolTipString(param.hint)
+        if len(param.allowedVals)==1:
+            self.valueCtrl.Disable()#visible but can't be changed
 
         #create the type control
         if len(param.allowedTypes)==0:
@@ -1499,6 +1529,7 @@ class _BaseParamsDlg(wx.Dialog):
             self.addAdvancedTab()
             for fieldName in self.advParams:
                 self.addParam(fieldName, advanced=True)
+
     def addStartStopCtrls(self,remaining):
         """Add controls for startType, startVal, stopType, stopVal
         remaining refers to
@@ -1511,8 +1542,8 @@ class _BaseParamsDlg(wx.Dialog):
         startTypeParam = self.params['startType']
         startValParam = self.params['startVal']
         #create label
-        label = wx.StaticText(self,-1,'start', style=wx.ALIGN_CENTER)
-        labelEstim = wx.StaticText(self,-1,'expected start (s)', style=wx.ALIGN_CENTER)
+        label = wx.StaticText(self,-1,'Start', style=wx.ALIGN_CENTER)
+        labelEstim = wx.StaticText(self,-1,'Expected start (s)', style=wx.ALIGN_CENTER)
         labelEstim.SetForegroundColour('gray')
         #the method to be used to interpret this start/stop
         self.startTypeCtrl = wx.Choice(parent, choices=startTypeParam.allowedVals)
@@ -1545,8 +1576,8 @@ class _BaseParamsDlg(wx.Dialog):
         stopTypeParam = self.params['stopType']
         stopValParam = self.params['stopVal']
         #create label
-        label = wx.StaticText(self,-1,'stop', style=wx.ALIGN_CENTER)
-        labelEstim = wx.StaticText(self,-1,'expected duration (s)', style=wx.ALIGN_CENTER)
+        label = wx.StaticText(self,-1,'Stop', style=wx.ALIGN_CENTER)
+        labelEstim = wx.StaticText(self,-1,'Expected duration (s)', style=wx.ALIGN_CENTER)
         labelEstim.SetForegroundColour('gray')
         #the method to be used to interpret this start/stop
         self.stopTypeCtrl = wx.Choice(parent, choices=stopTypeParam.allowedVals)
@@ -1588,13 +1619,17 @@ class _BaseParamsDlg(wx.Dialog):
             parent=self
             currRow = self.currRow
         param=self.params[fieldName]
-        ctrls=ParamCtrls(dlg=self, label=fieldName,param=param, advanced=advanced)
+        if param.label not in [None, '']:
+            label=param.label
+        else:
+            label=fieldName
+        ctrls=ParamCtrls(dlg=self, label=label,param=param, advanced=advanced)
         self.paramCtrls[fieldName] = ctrls
         if fieldName=='name':
             ctrls.valueCtrl.Bind(wx.EVT_TEXT, self.checkName)
         # self.valueCtrl = self.typeCtrl = self.updateCtrl
-        sizer.Add(ctrls.nameCtrl, (currRow,0), (1,1),wx.ALIGN_RIGHT )
-        sizer.Add(ctrls.valueCtrl, (currRow,1) , flag=wx.EXPAND)
+        sizer.Add(ctrls.nameCtrl, (currRow,0), (1,1),wx.ALIGN_RIGHT| wx.LEFT|wx.RIGHT,border=5 )
+        sizer.Add(ctrls.valueCtrl, (currRow,1) , flag=wx.EXPAND| wx.LEFT|wx.RIGHT,border=5)
         if ctrls.updateCtrl:
             sizer.Add(ctrls.updateCtrl, (currRow,2))
         if ctrls.typeCtrl:
@@ -1617,7 +1652,6 @@ class _BaseParamsDlg(wx.Dialog):
             #print id, fieldName
         elif fieldName=='Monitor':
             ctrls.valueCtrl.Bind(wx.EVT_RIGHT_DOWN, self.openMonitorCenter)
-
         #increment row number
         if advanced: self.advCurrRow+=1
         else:self.currRow+=1
@@ -2197,28 +2231,34 @@ class DlgLoopProperties(_BaseParamsDlg):
                 isSameFilePathAndName = False
             newPath = _relpath(newFullPath, expFolder)
             self.conditionsFile = newPath
+            needUpdate = False
             try:
                 self.conditions, self.condNamesInFile = data.importConditions(dlg.GetPath(),
                                                         returnFieldNames=True)
+                needUpdate = True
             except ImportError, msg:
                 msg = str(msg)
                 if msg.startswith('Could not open'):
-                    self.constantsCtrls['conditions'].setValue(msg)
-                    log.error('Could not open as a conditions file.')
+                    self.constantsCtrls['conditions'].setValue('Could not read conditions from:\n' + newFullPath.split(os.path.sep)[-1])
+                    logging.error('Could not open as a conditions file: %s' % newFullPath)
                 else:
+                    m2 = msg.replace('Conditions file ', '')
+                    dlgErr = dialogs.MessageDialog(parent=self.frame,
+                        message=m2.replace(': ', os.linesep * 2), type='Info',
+                        title='Configuration error in conditions file').ShowModal()
                     self.constantsCtrls['conditions'].setValue(
-                        'Badly formed condition name(s) in file:\n'+msg.replace(':','\n'))
-                    log.error('Rejected bad condition name in conditions file: %s' % msg.split(':')[0])
+                        'Bad condition name(s) in file:\n' + newFullPath.split(os.path.sep)[-1])
+                    logging.error('Rejected bad condition name(s) in file: %s' % newFullPath)
                 self.conditionsFile = self.conditionsFileOrig
                 self.conditions = self.conditionsOrig
-                logging.error('Rejected bad condition name in conditions file: %s' % str(msg).split(':')[0])
-                return
+                return # no update or display changes
 
             duplCondNames = []
             if len(self.condNamesInFile):
                 for condName in self.condNamesInFile:
                     if self.exp.namespace.exists(condName):
                         duplCondNames.append(condName)
+            # abbrev long strings to better fit in the dialog:
             duplCondNamesStr = ' '.join(duplCondNames)[:42]
             if len(duplCondNamesStr)==42:
                 duplCondNamesStr = duplCondNamesStr[:39]+'...'
@@ -2234,7 +2274,7 @@ class DlgLoopProperties(_BaseParamsDlg):
             # stash condition names but don't add to namespace yet, user can still cancel
             self.duplCondNames = duplCondNames # add after self.show() in __init__
 
-            if 'conditionsFile' in self.currentCtrls.keys() and not duplCondNames:
+            if needUpdate or 'conditionsFile' in self.currentCtrls.keys() and not duplCondNames:
                 self.constantsCtrls['conditionsFile'].setValue(getAbbrev(newPath))
                 self.constantsCtrls['conditions'].setValue(self.getTrialsSummary(self.conditions))
 
@@ -3022,6 +3062,7 @@ class BuilderFrame(wx.Frame):
         else:
             self.lastSavedCopy=None
             self.fileNew(closeCurrent=False)#don't try to close before opening
+        self.updateReadme()
 
         #control the panes using aui manager
         self._mgr = wx.aui.AuiManager(self)
@@ -3195,6 +3236,8 @@ class BuilderFrame(wx.Frame):
         menuBar.Append(self.viewMenu, '&View')
         self.viewMenu.Append(self.IDs.openCoderView, "&Open Coder view\t%s" %self.app.keys['switchToCoder'], "Open a new Coder view")
         wx.EVT_MENU(self, self.IDs.openCoderView,  self.app.showCoder)
+        self.viewMenu.Append(self.IDs.toggleReadme, "&Toggle readme\t%s" %self.app.keys['toggleReadme'], "Open a new Coder view")
+        wx.EVT_MENU(self, self.IDs.toggleReadme,  self.toggleReadme)
         self.viewMenu.Append(self.IDs.tbIncrFlowSize, "&Flow Larger\t%s" %self.app.keys['largerFlow'], "Larger flow items")
         wx.EVT_MENU(self, self.IDs.tbIncrFlowSize, self.flowPanel.increaseSize)
         self.viewMenu.Append(self.IDs.tbDecrFlowSize, "&Flow Smaller\t%s" %self.app.keys['smallerFlow'], "Smaller flow items")
@@ -3253,45 +3296,22 @@ class BuilderFrame(wx.Frame):
             if not self.app.quitting:
                 self.app.quit()
                 return#app.quit() will have closed the frame already
-
-        if checkSave:
-            ok=self.checkSave()
-            if not ok: return False
-        if self.filename==None:
-            frameData=self.appData['defaultFrame']
+        okToClose = self.fileClose(updateViews=False)#close file first (check for save) but no need to update view
+        if not okToClose:
+            return 0
         else:
-            frameData = dict(self.appData['defaultFrame'])
-            self.appData['prevFiles'].append(self.filename)
-        #get size and window layout info
-        if self.IsIconized():
-            self.Iconize(False)#will return to normal mode to get size info
-            frameData['state']='normal'
-        elif self.IsMaximized():
-            self.Maximize(False)#will briefly return to normal mode to get size info
-            frameData['state']='maxim'
-        else:
-            frameData['state']='normal'
-        frameData['auiPerspective'] = self._mgr.SavePerspective()
-        frameData['winW'], frameData['winH']=self.GetSize()
-        frameData['winX'], frameData['winY']=self.GetPosition()
-        for ii in range(self.fileHistory.GetCount()):
-            self.appData['fileHistory'].append(self.fileHistory.GetHistoryFile(ii))
-
-        #assign the data to this filename
-        self.appData['frames'][self.filename] = frameData
-        self.app.allFrames.remove(self)
-        self.app.builderFrames.remove(self)
-        #close window
-        self.Destroy()
-        return 1#indicates that check was successful
+            self.app.allFrames.remove(self)
+            self.app.builderFrames.remove(self)
+            self.Destroy()#close window
+            return 1#indicates all was successful (including check for save)
     def quit(self, event=None):
         """quit the app"""
         self.app.quit()
     def fileNew(self, event=None, closeCurrent=True):
         """Create a default experiment (maybe an empty one instead)"""
-        # check whether existing file is modified
+        #Note: this is NOT the method called by the File>New menu item. That calls app.newBuilderFrame() instead
         if closeCurrent: #if no exp exists then don't try to close it
-            if not self.fileClose(): return False #close the existing (and prompt for save if necess)
+            if not self.fileClose(updateViews=False): return False #close the existing (and prompt for save if necess)
         self.filename='untitled.psyexp'
         self.exp = experiment.Experiment(prefs=self.app.prefs)
         default_routine = 'trial'
@@ -3332,6 +3352,8 @@ class BuilderFrame(wx.Frame):
             #routinePanel.addRoutinePage() is done in routinePanel.redrawRoutines(), as called by self.updateAllViews()
             #update the views
             self.updateAllViews()#if frozen effect will be visible on thaw
+        self.updateReadme()
+
     def fileSave(self,event=None, filename=None):
         """Save file, revert to SaveAs if the file hasn't yet been saved
         """
@@ -3347,6 +3369,9 @@ class BuilderFrame(wx.Frame):
     def fileSaveAs(self,event=None, filename=None):
         """
         """
+        origFilename = self.filename
+        origShortname = os.path.splitext(os.path.split(origFilename)[1])[0]
+        defaultName = (origShortname==self.exp.name)
         if filename==None: filename = self.filename
         initPath, filename = os.path.split(filename)
 
@@ -3367,8 +3392,10 @@ class BuilderFrame(wx.Frame):
                         message="File '%s' already exists.\n    OK to overwrite?" % (newPath),
                         type='Warning')
             if not os.path.exists(newPath) or dlg2.ShowModal() == wx.ID_YES:
-                shortName = os.path.splitext(os.path.split(newPath)[1])[0]
-                self.exp.setExpName(shortName)
+                #if user has not manually renamed experiment
+                if defaultName:
+                    newShortName = os.path.splitext(os.path.split(newPath)[1])[0]
+                    self.exp.setExpName(newShortName)
                 #actually save
                 self.fileSave(event=None, filename=newPath)
                 self.filename = newPath
@@ -3383,6 +3410,35 @@ class BuilderFrame(wx.Frame):
             pass
         self.updateWindowTitle()
         return returnVal
+
+
+    def updateReadme(self):
+        """Check whether there is a readme file in this folder and try to show it"""
+        #create the frame if we don't have one yet
+        if not hasattr(self, 'readmeFrame') or self.readmeFrame==None:
+            self.readmeFrame=ReadmeFrame(parent=self)
+        #look for a readme file
+        if self.filename and self.filename!='untitled.psyexp':
+            dirname = os.path.dirname(self.filename)
+            possibles = glob.glob(os.path.join(dirname,'readme*'))
+            if len(possibles)==0:
+                possibles = glob.glob(os.path.join(dirname,'Readme*'))
+                possibles.extend(glob.glob(os.path.join(dirname,'README*')))
+            #still haven't found a file so use default name
+            if len(possibles)==0:
+                self.readmeFilename=os.path.join(dirname,'readme.txt')#use this as our default
+            else:
+                self.readmeFilename = possibles[0]#take the first one found
+        else:
+            self.readmeFilename=None
+        self.readmeFrame.setFile(self.readmeFilename)
+        if self.readmeFrame.ctrl.GetValue() and self.prefs['alwaysShowReadme']:
+            self.showReadme()
+    def showReadme(self, evt=None, value=True):
+        if not self.readmeFrame.IsShown():
+            self.readmeFrame.Show(value)
+    def toggleReadme(self, evt=None):
+        self.readmeFrame.toggleVisible()
     def OnFileHistory(self, evt=None):
         # get the file based on the menu ID
         fileNum = evt.GetId() - wx.ID_FILE1
@@ -3403,10 +3459,34 @@ class BuilderFrame(wx.Frame):
             elif resp == wx.ID_NO: pass #don't save just quit
         return 1
     def fileClose(self, event=None, checkSave=True, updateViews=True):
-        """user closes the Frame, not the file; fileOpen() calls fileClose()"""
+        """This is typically only called when the user x"""
         if checkSave:
             ok = self.checkSave()
             if not ok: return False#user cancelled
+
+        if self.filename==None:
+            frameData=self.appData['defaultFrame']
+        else:
+            frameData = dict(self.appData['defaultFrame'])
+            self.appData['prevFiles'].append(self.filename)
+            #get size and window layout info
+        if self.IsIconized():
+            self.Iconize(False)#will return to normal mode to get size info
+            frameData['state']='normal'
+        elif self.IsMaximized():
+            self.Maximize(False)#will briefly return to normal mode to get size info
+            frameData['state']='maxim'
+        else:
+            frameData['state']='normal'
+        frameData['auiPerspective'] = self._mgr.SavePerspective()
+        frameData['winW'], frameData['winH']=self.GetSize()
+        frameData['winX'], frameData['winY']=self.GetPosition()
+        for ii in range(self.fileHistory.GetCount()):
+            self.appData['fileHistory'].append(self.fileHistory.GetHistoryFile(ii))
+
+        #assign the data to this filename
+        self.appData['frames'][self.filename] = frameData
+
         #close self
         self.routinePanel.removePages()
         self.filename = 'untitled.psyexp'
@@ -3465,7 +3545,6 @@ class BuilderFrame(wx.Frame):
         if state==None:
             state=copy.deepcopy(self.exp)
         #remove actions from after the current level
-#        print 'before stack=', self.currentUndoStack
         if self.currentUndoLevel>1:
             self.currentUndoStack = self.currentUndoStack[:-(self.currentUndoLevel-1)]
             self.currentUndoLevel=1
@@ -3473,7 +3552,7 @@ class BuilderFrame(wx.Frame):
         self.currentUndoStack.append({'action':action,'state':state})
         self.enableUndo(True)
         self.setIsModified(newVal=True)#update save icon if needed
-#        print 'after stack=', self.currentUndoStack
+
     def undo(self, event=None):
         """Step the exp back one level in the @currentUndoStack@ if possible,
         and update the windows
@@ -3687,7 +3766,73 @@ class BuilderFrame(wx.Frame):
             self.setIsModified(True)
     def addRoutine(self, event=None):
         self.routinePanel.createNewRoutine()
+class ReadmeFrame(wx.Frame):
+    def __init__(self, parent):
+        """
+        A frame for presenting/loading/saving readme files
+        """
+        self.parent=parent
+        title="%s readme" %(parent.exp.name)
+        self._fileLastModTime=None
+        pos=wx.Point(parent.Position[0]+80, parent.Position[1]+80 )
+        wx.Frame.__init__(self, parent, title=title, size=(600,500),pos=pos,
+            style=wx.DEFAULT_FRAME_STYLE | wx.FRAME_FLOAT_ON_PARENT)
+        self.Hide()
+        self.makeMenus()
+        self.ctrl = wx.TextCtrl(self, style=wx.TE_MULTILINE)
+    def makeMenus(self):
+        """ IDs are from app.wxIDs"""
 
+        #---Menus---#000000#FFFFFF--------------------------------------------------
+        menuBar = wx.MenuBar()
+        #---_file---#000000#FFFFFF--------------------------------------------------
+        self.fileMenu = wx.Menu()
+        menuBar.Append(self.fileMenu, '&File')
+        self.fileMenu.Append(wx.ID_SAVE,    "&Save\t%s" %self.parent.app.keys['save'])
+        self.fileMenu.Append(wx.ID_CLOSE,   "&Close readme\t%s" %self.parent.app.keys['close'])
+        self.fileMenu.Append(self.parent.IDs.toggleReadme, "&Toggle readme\t%s" %self.parent.app.keys['toggleReadme'], "Open a new Coder view")
+        wx.EVT_MENU(self, self.parent.IDs.toggleReadme,  self.toggleVisible)
+        wx.EVT_MENU(self, wx.ID_SAVE,  self.fileSave)
+        wx.EVT_MENU(self, wx.ID_CLOSE,  self.toggleVisible)
+        self.SetMenuBar(menuBar)
+    def setFile(self, filename):
+        self.filename=filename
+        self.expName = self.parent.exp.name
+        #check we can read
+        if filename==None:#check if we can write to the directory
+            return False
+        elif not os.access(filename, os.R_OK):
+            logging.warning("Found readme file (%s) no read permissions" %filename)
+            return False
+            #attempt to open
+        try:
+            f=codecs.open(filename, 'r', 'utf-8')
+        except IOError, err:
+            logging.warning("Found readme file for %s and appear to have permissions, but can't open" %expName)
+            logging.warning(err)
+            return False
+            #attempt to read
+        try:
+            readmeText=f.read().replace("\r\n", "\n")
+        except:
+            logging.error("Opened readme file for %s it but failed to read it (not text/unicode?)" %expName)
+            return False
+        f.close()
+        self._fileLastModTime=os.path.getmtime(filename)
+        self.ctrl.SetValue(readmeText)
+        self.SetTitle("%s readme (%s)" %(self.expName, filename))
+    def fileSave(self, evt=None):
+        if self._fileLastModTime and os.path.getmtime(self.filename)>self._fileLastModTime:
+            logging.warning('readme file has been changed by another programme?')
+        txt = self.ctrl.GetValue()
+        f = codecs.open(self.filename, 'w', 'utf-8')
+        f.write(txt)
+        f.close()
+    def toggleVisible(self, evt=None):
+        if self.IsShown():
+            self.Hide()
+        else:
+            self.Show()
 def getAbbrev(longStr, n=30):
     """for a filename (or any string actually), give the first
     10 characters, an ellipsis and then n-10 of the final characters"""
@@ -3702,15 +3847,6 @@ def appDataToFrames(prefs):
     dat = prefs.appData['builder']
 def framesToAppData(prefs):
     pass
-def canBeNumeric(inStr):
-    """Determines whether the input can be converted to a float
-    (using a try: float(instr))
-    """
-    try:
-        float(inStr)
-        return True
-    except:
-        return False
 def _relpath(path, start='.'):
     """This code is based on os.path.repath in the Python 2.6 distribution,
     included here for compatibility with Python 2.5"""

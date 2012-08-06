@@ -26,7 +26,8 @@ class MouseComponent(BaseComponent):
         self.params={}
         self.order=[]
         self.params['name']=Param(name, valType='code', allowedTypes=[],
-            hint="Even mice need names!")
+            hint="Even mice need names!",
+            label="Name")
         self.params['startType']=Param(startType, valType='str',
             allowedVals=['time (s)', 'frame N', 'condition'],
             hint="How do you want to define your start point?")
@@ -44,14 +45,17 @@ class MouseComponent(BaseComponent):
             hint="(Optional) expected duration (s), purely for representing in the timeline")
         self.params['saveMouseState']=Param(save, valType='str',
             allowedVals=['final','on click', 'every frame', 'never'],
-            hint="How often should the mouse state (x,y,buttons) be stored? On every video frame, every click or just at the end of the Routine?")
+            hint="How often should the mouse state (x,y,buttons) be stored? On every video frame, every click or just at the end of the Routine?",
+            label="Save mouse state")
         self.params['forceEndRoutineOnPress']=Param(forceEndRoutineOnPress, valType='bool', allowedTypes=[],
             updates='constant', allowedUpdates=[],
-            hint="Should a button press force the end of the routine (e.g end the trial)?")
+            hint="Should a button press force the end of the routine (e.g end the trial)?",
+            label="End Routine on press")
         self.params['timeRelativeTo']=Param(timeRelativeTo, valType='str',
             allowedVals=['experiment','routine'],
             updates='constant', allowedUpdates=[],
-            hint="What should the values of mouse.time should be relative to?")
+            hint="What should the values of mouse.time should be relative to?",
+            label="Time relative to")
     def writeInitCode(self,buff):
         buff.writeIndented("%(name)s=event.Mouse(win=win)\n" %(self.params))
         buff.writeIndented("x,y=[None,None]\n" %(self.params))
@@ -74,7 +78,8 @@ class MouseComponent(BaseComponent):
         routineClockName = self.exp.flow._currentRoutine._clockName
 
         #only write code for cases where we are storing data as we go (each frame or each click)
-        if self.params['saveMouseState'] not in ['every frame', 'on click'] and not forceEnd:
+        if self.params['saveMouseState'].val not in ['every frame', 'on click'] \
+            and not forceEnd:#might not be saving clicks, but want it to force end of trial
             return
 
         buff.writeIndented("#*%s* updates\n" %(self.params['name']))
