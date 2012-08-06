@@ -1,6 +1,8 @@
 psychopy (1.74.02.dfsg-1) unstable; urgency=low
 
   * New bugfix of a fresh upstream feature release.
+  * New patches:
+    - up_Linux_components_path - point to location on Linux systems, not OSX
 
  -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 06 Aug 2012 10:39:21 -0400
 
