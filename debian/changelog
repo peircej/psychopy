@@ -1,4 +1,4 @@
-psychopy (1.74.02.dfsg-1) unstable; urgency=low
+psychopy (1.74.02.dfsg-1) experimental; urgency=low
 
   * New bugfix of a fresh upstream feature release.
   * New patches:
