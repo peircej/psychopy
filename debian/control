@@ -25,6 +25,7 @@ Recommends: python-wxgtk2.8,
             python-openpyxl,
             python-imaging,
             python-serial,
+            python-pyo,
             libavbin0,
             ipython
 Suggests: python-iolabs, python-pyxid
