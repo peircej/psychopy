@@ -60,7 +60,7 @@ else:
         options=dict(py2app=dict( includes=['Tkinter','FileDialog','tkFileDialog', 'imp', 'subprocess', 'shlex',
                                       'shelve',#for scipy.io
                                       '_elementtree', 'pyexpat',#these 2 are needed by xml, which is needed by openpyxl
-                                      'ioLabs','hid','pypsignifit',
+                                      'ioLabs','hid',#'pypsignifit', #psignifit is not available on py2.7
                                       'pp','ppauto','ppcommon','pptransport','ppworker',#annoying non-standard structure of pp
                                       'pyo',
                                       ],
@@ -71,10 +71,13 @@ else:
                                       site_packages=True,
                                       packages=['wx','pyglet','pygame','OpenGL','psychopy','pytz',
                                         'scipy','matplotlib','lxml','xml','openpyxl',
-                                        'nose','coverage',#for unit testing
+                                        'coverage',#for unit testing
                                         'serial','IPython',
                                         'egi','labjack','pylink',#handy external science interfaces
                                         'pyxid','pycrsltd',
+                                        #'PIL','Image',
+                                        'pyolib',
+                                        'pandas','tables',
                                         ],
                                       iconfile='psychopy/app/Resources/psychopy.icns',
                                       plist=dict(
@@ -84,7 +87,7 @@ else:
                                       CFBundleGetInfoString      = "PsychoPy2 "+__version__,
                                       CFBundleExecutable         = "PsychoPy2",
                                       CFBundleIdentifier         = "org.psychopy.PsychoPy2",
-                                      CFBundleLicense            = "GNU GPLv3",
+                                      CFBundleLicense            = "GNU GPLv3+",
                                       CFBundleDocumentTypes=[dict(CFBundleTypeExtensions=['*'],#CFBundleTypeName='Python Script',
                                                                  CFBundleTypeRole='Editor')],
                                       ),

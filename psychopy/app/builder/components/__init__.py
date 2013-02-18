@@ -1,13 +1,13 @@
 """Extensible set of components for the PsychoPy Builder view
 """
 # Part of the PsychoPy library
-# Copyright (C) 2012 Jonathan Peirce
+# Copyright (C) 2013 Jonathan Peirce
 # Distributed under the terms of the GNU General Public License (GPL).
 
 import os, glob, copy
 import wx, Image
 from os.path import *
-import psychopy
+
 def pilToBitmap(pil,scaleFactor=1.0):
     image = wx.EmptyImage(pil.size[0], pil.size[1] )
     image.SetData( pil.convert( "RGB").tostring() )
@@ -55,6 +55,8 @@ def getComponents(folder=None):
             file=os.path.split(file)[1]
 #            module = imp.load_source(file[:-3], fullPath)#can't use imp - breaks py2app
             exec('import %s as module' %(file[:-3]))
+            if not hasattr(module,'categories'):
+                module.categories=['Custom']
             for attrib in dir(module):
                 name=None
                 #just fetch the attributes that end with 'Component', not other functions
@@ -68,7 +70,9 @@ def getComponents(folder=None):
                     else:icons[name]=icons['default']
                     if hasattr(module, 'tooltip'):
                         tooltips[name] = module.tooltip
-                    # else will use shortName, done in Builder ComponentsPanel __init__
+                    #assign the module categories to the Component
+                    if not hasattr(components[attrib], 'categories'):
+                        components[attrib].categories=['Custom']
     return components
 
 def getAllComponents(folderList=[]):
@@ -85,6 +89,16 @@ def getAllComponents(folderList=[]):
         for thisKey in userComps.keys():
             components[thisKey]=userComps[thisKey]
     return components
+
+
+def getAllCategories(folderList=[]):
+    allComps = getAllComponents(folderList)
+    allCats = ['Stimuli','Responses','Custom']
+    for name, thisComp in allComps.items():
+        for thisCat in thisComp.categories:
+            if thisCat not in allCats:
+                allCats.append(thisCat)
+    return allCats
 
 def getInitVals(params):
     """Works out a suitable initial value for a parameter (e.g. to go into the
@@ -132,6 +146,9 @@ def getInitVals(params):
             inits[name].valType='str'
         elif name == 'text':
             inits[name].val="nonsense"
+            inits[name].valType='str'
+        elif name == 'flip':
+            inits[name].val=""
             inits[name].valType='str'
         elif name == 'sound':
             inits[name].val="A"

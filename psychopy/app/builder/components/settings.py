@@ -7,10 +7,10 @@ from psychopy import logging
 
 class SettingsComponent:
     """This component stores general info about how to run the experiment"""
-    def __init__(self, parentName, exp, fullScr=True, winSize=[1024,768], screen=1, monitor='testMonitor', showMouse=False,
+    def __init__(self, parentName, exp, expName='', fullScr=True, winSize=[1024,768], screen=1, monitor='testMonitor', showMouse=False,
                  saveLogFile=True, showExpInfo=True, expInfo="{'participant':'', 'session':'001'}",units='use prefs',
                  logging='exp', color='$[0,0,0]', colorSpace='rgb', enableEscape=True,
-                 saveXLSXFile=True, saveCSVFile=False, saveWideCSVFile=True, savePsydatFile=True,
+                 saveXLSXFile=False, saveCSVFile=False, saveWideCSVFile=True, savePsydatFile=True,
                  savedDataFolder=''):
         self.type='Settings'
         self.exp=exp#so we can access the experiment if necess
@@ -23,7 +23,7 @@ class SettingsComponent:
             'Save excel file','Save csv file','Save wide csv file','Save psydat file','Save log file','logging level',
             'Monitor','Screen', 'Full-screen window','Window size (pixels)',
             'color','colorSpace','Units',]
-        self.params['expName']=Param(exp.name, valType='str', allowedTypes=[],
+        self.params['expName']=Param(expName, valType='str', allowedTypes=[],
             hint="Name of the entire experiment (taken by default from the filename on save)",
             label="Experiment name")
         self.params['Full-screen window']=Param(fullScr, valType='bool', allowedTypes=[],
@@ -80,51 +80,54 @@ class SettingsComponent:
                 saveToDir = 'data'
         return saveToDir
     def writeStartCode(self,buff):
-        buff.writeIndented("#store info about the experiment session\n")
-        buff.writeIndented("expName='%s'#from the Builder filename that created this script\n" %(self.exp.name))
+        buff.writeIndented("# Store info about the experiment session\n")
+        if self.params['expName'].val in [None,'']:
+            expName = ''
+        else:
+            buff.writeIndented("expName = %s  # from the Builder filename that created this script\n" %(self.params['expName']))
         expInfo = self.params['Experiment info'].val.strip()
         if not len(expInfo): expInfo = '{}'
         try: eval('dict('+expInfo+')')
         except SyntaxError, err:
             logging.error('Builder Expt: syntax error in "Experiment info" settings (expected a dict)')
             raise SyntaxError, 'Builder: error in "Experiment info" settings (expected a dict)'
-        buff.writeIndented("expInfo=%s\n" % expInfo)
+        buff.writeIndented("expInfo = %s\n" % expInfo)
         if self.params['Show info dlg'].val:
-            buff.writeIndented("dlg=gui.DlgFromDict(dictionary=expInfo,title=expName)\n")
-            buff.writeIndented("if dlg.OK==False: core.quit() #user pressed cancel\n")
-        buff.writeIndented("expInfo['date']=data.getDateStr()#add a simple timestamp\n")
-        buff.writeIndented("expInfo['expName']=expName\n")
+            buff.writeIndented("dlg = gui.DlgFromDict(dictionary=expInfo, title=expName)\n")
+            buff.writeIndented("if dlg.OK == False: core.quit()  # user pressed cancel\n")
+        buff.writeIndented("expInfo['date'] = data.getDateStr()  # add a simple timestamp\n")
+        buff.writeIndented("expInfo['expName'] = expName\n")
         saveToDir = self.getSaveDataDir()
         level=self.params['logging level'].val.upper()
 
-        buff.writeIndented("#setup files for saving\n")
+        buff.writeIndentedLines("\n# Setup files for saving\n")
         buff.writeIndented("if not os.path.isdir('%s'):\n" % saveToDir)
-        buff.writeIndented("    os.makedirs('%s') #if this fails (e.g. permissions) we will get error\n" % saveToDir)
+        buff.writeIndented("    os.makedirs('%s')  # if this fails (e.g. permissions) we will get error\n" % saveToDir)
         if 'participant' in self.params['Experiment info'].val:
-            buff.writeIndented("filename='" + saveToDir + "' + os.path.sep + '%s_%s' %(expInfo['participant'], expInfo['date'])\n")
+            buff.writeIndented("filename = '" + saveToDir + "' + os.path.sep + '%s_%s' %(expInfo['participant'], expInfo['date'])\n")
         elif 'Participant' in self.params['Experiment info'].val:
-            buff.writeIndented("filename='" + saveToDir + "' + os.path.sep + '%s_%s' %(expInfo['Participant'], expInfo['date'])\n")
+            buff.writeIndented("filename = '" + saveToDir + "' + os.path.sep + '%s_%s' %(expInfo['Participant'], expInfo['date'])\n")
         elif 'Subject' in self.params['Experiment info'].val:
-            buff.writeIndented("filename='" + saveToDir + "' + os.path.sep + '%s_%s' %(expInfo['Subject'], expInfo['date'])\n")
+            buff.writeIndented("filename = '" + saveToDir + "' + os.path.sep + '%s_%s' %(expInfo['Subject'], expInfo['date'])\n")
         elif 'Observer' in self.params['Experiment info'].val:
-            buff.writeIndented("filename='" + saveToDir + "' + os.path.sep + '%s_%s' %(expInfo['Observer'], expInfo['date'])\n")
+            buff.writeIndented("filename = '" + saveToDir + "' + os.path.sep + '%s_%s' %(expInfo['Observer'], expInfo['date'])\n")
         else:
-            buff.writeIndented("filename='" + saveToDir + "' + os.path.sep + '%s' %(expInfo['date'])\n")
+            buff.writeIndented("filename = '" + saveToDir + "' + os.path.sep + '%s' %(expInfo['date'])\n")
 
         if self.params['Save log file'].val:
-            buff.writeIndented("logFile=logging.LogFile(filename+'.log', level=logging.%s)\n" %(level))
+            buff.writeIndented("logFile = logging.LogFile(filename+'.log', level=logging.%s)\n" %(level))
 
-        buff.writeIndented("logging.console.setLevel(logging.WARNING)#this outputs to the screen, not a file\n")
+        buff.writeIndented("logging.console.setLevel(logging.WARNING)  # this outputs to the screen, not a file\n")
 
         #set up the ExperimentHandler
-        buff.writeIndented("\n#an ExperimentHandler isn't essential but helps with data saving\n")
+        buff.writeIndentedLines("\n# An ExperimentHandler isn't essential but helps with data saving\n")
         buff.writeIndented("thisExp = data.ExperimentHandler(name=expName, version='',\n")
         buff.writeIndented("    extraInfo=expInfo, runtimeInfo=None,\n")
         buff.writeIndented("    originPath=%s,\n" %repr(self.exp.expPath))
         buff.writeIndented("    savePickle=%(Save psydat file)s, saveWideText=%(Save wide csv file)s,\n" %self.params)
         buff.writeIndented("    dataFileName=filename)\n")
 
-        buff.writeIndented("\n#setup the Window\n")
+        buff.writeIndentedLines("\n# Setup the Window\n")
         #get parameters for the Window
         fullScr = self.params['Full-screen window'].val
         allowGUI = (not bool(fullScr)) or bool(self.params['Show mouse'].val) #if fullscreen then hide the mouse, unless its requested explicitly
@@ -134,7 +137,14 @@ class SettingsComponent:
                if thisComp.type=='Aperture': allowStencil = True
                if thisComp.type=='RatingScale': allowGUI = True # to have a mouse; BUT might not want it shown in other routines
 
-        screenNumber = int(self.params['Screen'].val)-1 #computer has 1 as first screen
+        
+        requestedScreenNumber = int(self.params['Screen'].val)
+        if requestedScreenNumber > wx.Display.GetCount():
+            logging.warn("Requested screen can't be found. Writing script using first available screen.")
+            screenNumber = 0
+        else:
+            screenNumber = requestedScreenNumber-1 #computer has 1 as first screen
+        
         if fullScr:
             size = wx.Display(screenNumber).GetGeometry()[2:4]
         else:
@@ -148,13 +158,10 @@ class SettingsComponent:
         buff.write(unitsCode+")\n")
 
         if 'microphone' in self.exp.psychopyLibs: # need a pyo Server
-            buff.writeIndented("\n# Enable sound input/output:\n"+
+            buff.writeIndentedLines("\n# Enable sound input/output:\n"+
                                 "microphone.switchOn()\n")
     def writeEndCode(self,buff):
         """write code for end of experiment (e.g. close log file)
         """
-        buff.writeIndented("\n#Shutting down:\n")
-        if 'microphone' in self.exp.psychopyLibs:
-            buff.writeIndented("microphone.switchOff()\n")
         buff.writeIndented("win.close()\n")
         buff.writeIndented("core.quit()\n")

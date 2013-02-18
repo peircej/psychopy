@@ -34,6 +34,9 @@
     version = string(default='')
     # Add paths here to your custom Python modules
     paths=list(default=list())
+    #choice of audio library
+    audioLib = list(default=list('pygame', 'pyo'))
+    audioDriver = list(default=list('portaudio'))
 
 # Application settings, applied to coder, builder, & prefs windows
 [app]
@@ -77,7 +80,7 @@
     # folder names for custom components; expects a comma-separated list
     componentsFolders = list(default=list('/Users/Shared/PsychoPy2/components'))
     # a list of components to hide (eg, because you never use them)
-    hiddenComponents = list(default=list())
+    hiddenComponents = list(default=list('PatchComponent'))
     # where the Builder demos are located on this computer (after unpacking)
     unpackedDemosDir = string(default='')
     # name of the folder where subject data should be saved (relative to the script)
@@ -86,6 +89,7 @@
     # Panels arrangement: topFlow = Flow on top, Components on left
     topFlow = boolean(default=False)
     alwaysShowReadme = boolean(default=True)
+    maxFavorites = integer(default=10)
 
 # Settings for connections
 [connections]
