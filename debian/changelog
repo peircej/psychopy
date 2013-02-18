@@ -1,8 +1,12 @@
-psychopy (1.74.03.dfsg-2) UNRELEASED; urgency=low
+psychopy (1.76.00.dfsg-1) experimental; urgency=low
 
-  * Added python-pyo to recommends
+  * New upstream release
+  * debian/control:
+    - added python-pyo to recommends
+  * debian/copyright:
+    - updated years
 
- -- Yaroslav Halchenko <debian@onerussian.com>  Fri, 05 Oct 2012 10:16:48 -0400
+ -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 18 Feb 2013 11:35:21 -0500
 
 psychopy (1.74.03.dfsg-1) experimental; urgency=low
 
