@@ -14,17 +14,81 @@ Changelog
   In general, when a new feature is added the second number is incremented (e.g. 1.00.05 -> 1.01.00). Those releases might break previous code you've written because new features often need slight changes to other things.
   Changes to the final digit (1.00.05 -> 1.00.06) indicate a bug-fixing release or very minor new features that shouldn't require code changes from the user.
 
-:blue:`Changes in blue typically indicate things that alter the PsychoPy behaviour in a way that could could break compatibility. Be especially wary of those!`
+:blue:`Changes in blue typically indicate things that alter the PsychoPy behaviour in a way that could break compatibility. Be especially wary of those!`
+
+PsychoPy 1.76
+------------------------------
+
+PsychoPy 1.76.00
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The compatibility changes in this release below are likely to affect very few users
+
+* ADDED: :func:`Window.callOnFlip() <psychopy.visual.Window.callOnFlip>` function to allow arbitrary functions to be called, timed precisely to the point where the frame flip has occurred (see Coder Demos>Timing>callOnFlip)
+* FIXED: a scaling bug in RatingScale descriptions (Giuseppe Pagnoni)
+* ADDED: support for mirror-image text, and mirror-image BufferImageStim (Jeremy Gray)
+* ADDED: support for lower latency sound with the pyo library. For now pygame remains the default but this can be changed by setting the order in preferences>general>audio
+* CHANGED: PsychoPy Standalone is now being built using python 2.7.3 (rather than 2.6). Under OSX psignifit has been removed from this distribution, as have the libraries to create .mov files using Window.saveMovieFrames(). If you need those features then install the 1.75 Standalone and then update to 1.76 using the auto-update system.
+* ADDED: sound objects (either pygame or pyo) now support autologging
+* FIXED: a bug in the generation of the LMS color space conversion matrix. It seems nobody was actually using this for real, but if you were contact Jon for details!
+* CHANGED: various changes to RatingScale (thanks Henrik Singman):
+   * CHANGED: choices are now displayed at the tick marks by default (instead of above the line). To restore the old behavior set labels=False. This does not affect experiments created in older versions of the builder.
+   * ADDED: check box "choiceLabelsAboveLines" to the RatingScale component of the builder (advanced tab) to still have the choice labels above the line.
+   * ADDED: arguments tickMarks and labels to RatingScale class to control where tick marks (for quantitative rating scales) should be placed at the line and how these should be labeled.
+   * ADDED: argument ticksAboveLine to RatingScale class. Controls where the tick marks should be plotted (above or below the line).
+* FIXED: problem with unset exp.name (was causing wx.Dialog error "TypeError: String or Unicode type required" on new experiments)
+* :blue:`CHANGED: exp.name is no longer available from Builder scripts (use exp.getExpName() instead)`
+* FIXED: problem with tiling of depth values for ElementArrayStim (thanks Yuri Spitsyn)
+* FIXED: Fix to setContrast for certain visual stimuli (Jonas Lindeløv)
+* FIXED: inability to launch scripts/experiments if the Mac Standalone was in a folder with a space in it
+* FIXED: Aperture Component now honours the 'units' (Hiroyuki Sogo)
+* :blue:`FIXED: stimulus contains/overlaps functions now use stimulus 'units' and take stimulus orientation into account (Hiroyuki Sogo) NB if you had code in place to perform these corrections yourself you should now remove it!`
+* FIXED: some data outputs were not honouring the 'matrixOnly' option (Mike MacAskill)
+* FIXED: when loading a psydat file of an ExperimentHandler the file automatically saved new copies of its csv/excel outputs. This no longer occurs (if loaded using misc.fromFile)
+* ADDED: timestamp option to event.waitKeys() (Jonas Lindeløv)
+* ADDED: a first-run wizard to check the system, report as html (somewhat experimental) (Jeremy Gray)
+* ADDED: a benchmark wizard (Tools menu) to test hardware & software, option to share on psychopy.org (Jeremy Gray)
+* ADDED: info.getRAM() (Jeremy Gray)
+* FIXED: Fall back to primary display if a secondary one is specified but unavailable. (Erik Kastman)
+
+PsychoPy 1.75.01
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* FIXED: Bug with not being able to play sounds of blank (infinite) duration from Builder
+
+PsychoPy 1.75.00
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* CHANGED: New Builder experiments will, by default save a single csv file, a single psydat file and a single log file. Was previously also saving an Excel file (wiht one sheet per loop) and many psydat files (one per loop). This can be changed in settings. Psydat files can still be used to re-output any format of data file.
+* IMPROVED: Experiment info dialog box easier to control now from experiment settings (user doesn't need to write a dictionary by hand any more)
+* IMPROVED: Components in the Builder are now arranged in categories, including a special 'Favorites' category
+* IMPROVED: Code Components now support full syntax highlighting and code folding (but still aren't quite big enough!)
+* ADDED: Builder undo/redo now gives info about what is going to be un/redone
+* ADDED: Window now supports a `stereo` flag to provide support for quad-buffers (advanced graphics cards only)
+* FIXED: bug with copying/pasting Routines that was breaking Flow in certain situations and corrupting the experiment file
+* FIXED: fatal typo in QuestHandler code (Gary Lupyan)
+* FIXED: data outputs for multiple key/mouse presses
+* ADDED: Microphone now supports `stop` to abort recording early (Jeremy Gray)
+* ADDED: beginning of error reporting when generating Builder experiments (thanks Piotr Iwaniuk)
+* FIXED: csv files now generated from Builder as expected not dlm files (tab-delimited)
 
 PsychoPy 1.74
 ------------------------------
+
+PsychoPy 1.74.04
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* IMPROVED: larger Code Component boxes (and fixed bug with being only one line on linux)
+* FIXED: Builder code syntax error when using Mouse set state 'every frame'
+* FIXED: Builder was erroneously using 'estimated duration' for constraining non-slip timing
+* FIXED: Builder couldn't open Experiment Settings if the expected screen number didn't exist on this system
 
 PsychoPy 1.74.03
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (released Aug 2012)
 
-* FIXED: the multiline text entry box in the Builder Text Component was broken (thanks piwaniuk)
+* FIXED: the multiline text entry box in the Builder Text Component was broken (thanks Piotr Iwaniuk)
 * IMPROVED: serial (RS232) interface to fORP button box to avoid recording repeated presses (thanks Nate Vack). Does not affect use of fORP box from USB interface.
 
 PsychoPy 1.74.02
@@ -50,7 +114,6 @@ PsychoPy 1.74.01
 * FIXED: error at end of automated gamma calibration (which was causing a crash of the calibration script)
 * FIXED: misc.getDateStr() returns numeric date if there's an error with unicode encoding (Jeremy)
 * FIXED: added partial support for non-ASCII keyboards (Sebastiaan Mathot)
-
 
 PsychoPy 1.74.00
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

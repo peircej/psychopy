@@ -6,6 +6,17 @@ import locale
 join = os.path.join
 
 class Preferences:
+    """Users can alter preferences from the dialog box in the application,
+    by editing their user preferences file (which is what the dialog box does)
+    or, within a script, preferences can be controlled like this::
+
+        import psychopy
+        psychopy.prefs.general['audioLib'] = ['pyo','pygame']
+        print(prefs) #prints the location of the user prefs file and all the current values
+
+    Use the instance of `prefs`, as above, rather than the `Preferences` class
+    directly if you want to affect the script that's running.
+    """
     def __init__(self):
         self.userPrefsCfg=None#the config object for the preferences
         self.prefsSpec=None#specifications for the above
@@ -39,7 +50,14 @@ class Preferences:
 
         if self.userPrefsCfg['app']['resetPrefs']:
             self.resetPrefs()
-
+    def __str__(self):
+        """pretty print the current preferences"""
+        strOut = "psychopy.prefs <%s>:\n" %(join(self.paths['userPrefsDir'], 'userPrefs.cfg'))
+        for sectionName in ['general','coder','builder','connections']:
+            section = getattr(self,sectionName)
+            for key, val in section.items():
+                strOut += "  prefs.%s['%s'] = %s\n" %(sectionName, key, repr(val))
+        return strOut
     def resetPrefs(self):
         """removes userPrefs.cfg, does not touch appData.cfg
         """
@@ -138,6 +156,10 @@ class Preferences:
         cfg = configobj.ConfigObj(self.paths['appDataFile'], encoding='UTF8', configspec=appDataSpec)
         resultOfValidate = cfg.validate(self._validator, copy=True, preserve_errors=True)
         self.restoreBadPrefs(cfg, resultOfValidate)
+        #force favComponent level values to be integers
+        if 'favComponents' in cfg['builder'].keys():
+            for key in cfg['builder']['favComponents']:
+                cfg['builder']['favComponents'][key] = int(cfg['builder']['favComponents'][key])
         return cfg
     def saveAppData(self):
         """Save the various setting to the appropriate files (or discard, in some cases)
@@ -161,4 +183,4 @@ class Preferences:
             else:
                 print "Section [%s] was missing in file '%s'" % (', '.join(section_list), cfg.filename)
 
-
+prefs=Preferences()

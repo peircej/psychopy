@@ -1,5 +1,5 @@
 # Part of the PsychoPy library
-# Copyright (C) 2012 Jonathan Peirce
+# Copyright (C) 2013 Jonathan Peirce
 # Distributed under the terms of the GNU General Public License (GPL).
 
 from _visual import * # to get the template visual component
@@ -46,16 +46,19 @@ class ApertureComponent(VisualComponent):
         del self.params['opacity']
 
     def writeInitCode(self, buff):
-        inits = components.getInitVals(self.params)
+        #do we need units code?
+        if self.params['units'].val=='from exp settings': unitsStr=""
+        else: unitsStr="units=%(units)s, " %self.params
         #do writing of init
-        buff.writeIndented("%(name)s=visual.Aperture(win=win, name='%(name)s',\n" % (inits))
-        buff.writeIndented("    size=%(size)s, pos=%(pos)s, units='pix')\n" % (inits))
-        buff.writeIndented("%(name)s.disable() # is enabled by default\n" %(inits))
+        inits = components.getInitVals(self.params)
+        buff.writeIndented("%(name)s = visual.Aperture(win=win, name='%(name)s',\n" % (inits))
+        buff.writeIndented("    "+unitsStr+"size=%(size)s, pos=%(pos)s)\n" % (inits))
+        buff.writeIndented("%(name)s.disable()  # disable until its actually used\n" %(inits))
     def writeFrameCode(self, buff):
         """Only activate the aperture for the required frames
         """
         buff.writeIndented("\n")
-        buff.writeIndented("#*%s* updates\n" %(self.params['name']))
+        buff.writeIndented("# *%s* updates\n" %(self.params['name']))
         self.writeStartTestCode(buff)#writes an if statement to determine whether to draw etc
         buff.writeIndented("%(name)s.enable()\n" %(self.params))
         buff.setIndentLevel(-1, relative=True)#to get out of the if statement
@@ -64,11 +67,11 @@ class ApertureComponent(VisualComponent):
         buff.setIndentLevel(-1, relative=True)#to get out of the if statement
         #set parameters that need updating every frame
         if self.checkNeedToUpdate('set every frame'):#do any params need updating? (this method inherited from _base)
-            buff.writeIndented("if %(name)s.status==STARTED:#only update if being drawn\n" %(self.params))
+            buff.writeIndented("if %(name)s.status == STARTED:  # only update if being drawn\n" %(self.params))
             buff.setIndentLevel(+1, relative=True)#to enter the if block
             self.writeParamUpdates(buff, 'set every frame')
-            buff.setIndentLevel(+1, relative=True)#to exit the if block
+            buff.setIndentLevel(-1, relative=True)#to exit the if block
 
     def writeRoutineEndCode(self, buff):
-        buff.writeIndented("%(name)s.disable() #just in case it was left enabled\n" % (self.params))
+        buff.writeIndented("%(name)s.disable()  # just in case it was left enabled\n" % (self.params))
 

@@ -2,7 +2,7 @@
 - just handy things like conversion functions etc...
 """
 # Part of the PsychoPy library
-# Copyright (C) 2012 Jonathan Peirce
+# Copyright (C) 2013 Jonathan Peirce
 # Distributed under the terms of the GNU General Public License (GPL).
 
 import numpy, random #this is imported by psychopy.core
@@ -30,6 +30,9 @@ def fromFile(filename):
     f = open(filename)
     contents = cPickle.load(f)
     f.close()
+    #if loading an experiment file make sure we don't save further copies using __del__
+    if hasattr(contents, 'abort'):
+        contents.abort()
     return contents
 
 def createXYs(x,y=None):
@@ -283,20 +286,20 @@ def sph2cart(*args):
 
 def cart2sph(z, y, x):
     """Convert from cartesian coordinates (x,y,z) to spherical (elevation,
-    azimuth, radius). Output is in degrees. 
-    
+    azimuth, radius). Output is in degrees.
+
     usage:
         array3xN[el,az,rad] = cart2sph(array3xN[x,y,z])
         OR
         elevation, azimuth, radius = cart2sph(x,y,z)
-        
+
         If working in DKL space, z = Luminance, y = S and x = LM"""
     width = len(z)
-    
+
     elevation = numpy.empty([width,width])
     radius = numpy.empty([width,width])
     azimuth = numpy.empty([width,width])
-    
+
     radius = numpy.sqrt(x**2 + y**2 + z**2)
     azimuth = numpy.arctan2(y, x)
     #Calculating the elevation from x,y up
@@ -419,7 +422,7 @@ def dkl2rgb(dkl, conversionMatrix=None):
         dkl = numpy.reshape(dkl_NxNx3,[NxN,3])#make Nx3
         rgb = dkl2rgb(dkl,conversionMatrix)#convert
         return numpy.reshape(rgb,origShape)#reshape and return
-    
+
     else:
         dkl_Nx3=dkl
         dkl_3xN = numpy.transpose(dkl_Nx3)#its easier to use in the other orientation!
@@ -510,7 +513,6 @@ def lms2rgb(lms_Nx3, conversionMatrix=None):
         logging.warning('This monitor has not been color-calibrated. Using default LMS conversion matrix.')
     else: cones_to_rgb=conversionMatrix
 
-    rgb_to_cones = numpy.linalg.pinv(cones_to_rgb)#get inverse
     rgb = numpy.dot(cones_to_rgb, lms_3xN)
     return numpy.transpose(rgb)#return in the shape we received it
 
@@ -607,8 +609,8 @@ def plotFrameIntervals(intervals):
     show()
 
 def _handleFileCollision(fileName, fileCollisionMethod):
-    """ Handle filename collisions by overwriting, renaming, or failing hard. 
-    
+    """ Handle filename collisions by overwriting, renaming, or failing hard.
+
     :Parameters:
 
         fileCollisionMethod: 'overwrite', 'rename', 'fail'
@@ -622,12 +624,12 @@ def _handleFileCollision(fileName, fileCollisionMethod):
         rootName, extension = os.path.splitext(fileName)
         matchingFiles = glob.glob("%s*%s" % (rootName, extension))
         count = len(matchingFiles)
-        
+
         fileName = "%s_%d%s" % (rootName, count, extension) # Build the renamed string.
-        
+
         if os.path.exists(fileName): # Check to make sure the new fileName hasn't been taken too.
             raise IOError("New fileName %s has already been taken. Something is wrong with the append counter." % fileName)
-        
+
     else:
         raise ValueError("Argument fileCollisionMethod was invalid: %s" % str(fileCollisionMethod))
 

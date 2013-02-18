@@ -1,5 +1,5 @@
 # Part of the PsychoPy library
-# Copyright (C) 2012 Jonathan Peirce
+# Copyright (C) 2013 Jonathan Peirce
 # Distributed under the terms of the GNU General Public License (GPL).
 
 from _base import *
@@ -15,6 +15,7 @@ tooltip = 'Rating scale: obtain numerical or categorical responses'
 
 class RatingScaleComponent(BaseComponent):
     """A class for presenting a rating scale as a builder component"""
+    categories = ['Responses','Custom']
     def __init__(self, exp, parentName,
                  name='rating',
                  scaleDescription='',
@@ -29,7 +30,7 @@ class RatingScaleComponent(BaseComponent):
                  startEstim='', durationEstim='',
                  forceEndRoutine=True,
                  disappear=False,
-                 storeRating=True, storeRatingTime=True,
+                 storeRating=True, storeRatingTime=True, choiceLabelsAboveLine=False,
                  lowAnchorText='', highAnchorText='',
                  customize_everything=''
                  ):
@@ -43,7 +44,7 @@ class RatingScaleComponent(BaseComponent):
         self.order = ['name', 'visualAnalogScale', 'categoryChoices', 'scaleDescription', 'low', 'high', 'size']
         self.params = {}
         self.params['advancedParams'] = ['singleClick', 'forceEndRoutine', 'size', 'disappear',
-                        'pos', 'storeRatingTime', 'storeRating', 'lowAnchorText', 'highAnchorText', 'customize_everything']
+                        'pos', 'storeRatingTime', 'storeRating', 'choiceLabelsAboveLine', 'lowAnchorText', 'highAnchorText', 'customize_everything']
 
         # normal params:
         self.params['name'] = Param(name, valType='code', allowedTypes=[],
@@ -96,6 +97,8 @@ class RatingScaleComponent(BaseComponent):
         self.params['storeRating'] = Param(storeRating, valType='bool', allowedTypes=[],
             updates='constant', allowedUpdates=[],
             hint="store the rating")
+        self.params['choiceLabelsAboveLine'] = Param(choiceLabelsAboveLine, valType='bool', allowedTypes=[],
+            updates='constant', allowedUpdates=[], hint="restores the old behavior for choices (i.e., labels above the line)")
         self.params['storeRatingTime'] = Param(storeRatingTime, valType='bool', allowedTypes=[],
             updates='constant', allowedUpdates=[],
             hint="store the time taken to make the choice (in seconds)")
@@ -117,7 +120,7 @@ class RatingScaleComponent(BaseComponent):
 
     def writeInitCode(self, buff):
         # build up an initialization string for RatingScale():
-        init_str = "%(name)s=visual.RatingScale(win=win, name='%(name)s'" % (self.params)
+        init_str = "%(name)s = visual.RatingScale(win=win, name='%(name)s'" % (self.params)
         if self.params['customize_everything'].val.strip() != '':
             # clean it up a little, remove win=*, leading / trailing typos
             self.params['customize_everything'].val = re.sub(r"[\\s,]*win=[^,]*,", '', self.params['customize_everything'].val)
@@ -154,6 +157,8 @@ class RatingScaleComponent(BaseComponent):
                     ch_list = choices.split(' ')
                 ch_list = [c.strip().strip(',').lstrip().lstrip(',') for c in ch_list]
                 init_str += ', choices=' + str(ch_list)
+                if self.params['choiceLabelsAboveLine'].val:
+                    init_str += ', labels=False'
             else:
                 # low/lowAnchorText
                 if len(self.params['lowAnchorText'].val):
@@ -191,8 +196,7 @@ class RatingScaleComponent(BaseComponent):
 
     def writeFrameCode(self, buff):
         name = self.params['name']
-        buff.writeIndented("\n")
-        buff.writeIndented("#*%(name)s* updates\n" %(self.params))
+        buff.writeIndented("# *%(name)s* updates\n" %(self.params))
         # try to handle blank start condition gracefully:
         if not self.params['startVal'].val.strip():
             self.params['startVal'].val = 0 # time, frame
@@ -227,7 +231,7 @@ class RatingScaleComponent(BaseComponent):
         #write the actual code
         if currLoop and (self.params['storeRating'].val or self.params['storeRatingTime'].val):
             if currLoop.type in ['StairHandler', 'QuestHandler']:
-                buff.writeIndented("#NB PsychoPy doesn't handle a 'correct answer' for ratingscale " +
+                buff.writeIndented("# NB PsychoPy doesn't handle a 'correct answer' for ratingscale " +
                                "events so doesn't know what to tell a StairHandler (or QuestHandler)")
             elif currLoop.type == 'TrialHandler':
                 if self.params['storeRating'].val == True:
@@ -237,5 +241,5 @@ class RatingScaleComponent(BaseComponent):
                     buff.writeIndented("%s.addData('%s.rt', %s.getRT())\n" \
                                        % (currLoop.params['name'], name, name))
             else:
-                buff.writeIndented("#RatingScaleComponent: unknown loop type, not saving any data.")
+                buff.writeIndented("# RatingScaleComponent: unknown loop type, not saving any data.")
 

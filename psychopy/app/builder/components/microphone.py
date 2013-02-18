@@ -1,6 +1,8 @@
 # Part of the PsychoPy library
-# Copyright (C) 2012 Jonathan Peirce
+# Copyright (C) 2013 Jonathan Peirce
 # Distributed under the terms of the GNU General Public License (GPL).
+
+# Author: Jeremy R. Gray, 2012
 
 from _base import *
 from os import path
@@ -12,8 +14,9 @@ tooltip = 'Microphone: basic sound capture (fixed onset & duration), okay for sp
 
 class MicrophoneComponent(BaseComponent):
     """An event class for capturing short sound stimuli"""
-    def __init__(self, exp, parentName, name='mic_1', 
-                 startType='time (s)', startVal=0.0, 
+    categories = ['Responses']
+    def __init__(self, exp, parentName, name='mic_1',
+                 startType='time (s)', startVal=0.0,
                  stopType='duration (s)', stopVal=2.0, startEstim='', durationEstim='',
                 ):
         self.type='Microphone'
@@ -31,7 +34,7 @@ class MicrophoneComponent(BaseComponent):
             hint="How do you want to define your start point?")
         self.params['stopType']=Param(stopType, valType='str',
             allowedVals=['duration (s)'],
-            hint="The duration of the recording in seconds")
+            hint="The duration of the recording in seconds; blank = 0 sec")
         self.params['startVal']=Param(startVal, valType='code', allowedTypes=[],
             hint="When does the sound start recording?")
         self.params['stopVal']=Param(stopVal, valType='code', allowedTypes=[],
@@ -47,37 +50,42 @@ class MicrophoneComponent(BaseComponent):
         # filename should have date_time, so filename_wav should be unique
         buff.writeIndented("wavDirName = filename + '_wav'\n") 
         buff.writeIndented("if not os.path.isdir(wavDirName):\n" +
-                           "    os.makedirs(wavDirName) # to hold .wav files\n")
+                           "    os.makedirs(wavDirName)  # to hold .wav files\n")
     def writeRoutineStartCode(self,buff):
         inits = components.getInitVals(self.params) #replaces variable params with sensible defaults
         buff.writeIndented("%s = microphone.AudioCapture(name='%s', saveDir=wavDirName)\n" %(
             inits['name'], inits['name']))
     def writeFrameCode(self,buff):
         """Write the code that will be called every frame"""
-        if self.params['stopType'].val == 'duration (s)':
-            duration = float(self.params['stopVal'].val)
-        else:
-            duration = float(self.params['stopVal'].val) - float(self.params['startVal'].val)
-        buff.writeIndented("#start/stop %(name)s\n" %(self.params))
-        buff.writeIndented("if t >= %(startVal)s and %(name)s.status == NOT_STARTED:\n" % self.params)
-        buff.writeIndented("    %s.record(sec=%.3f) #start the recording (it finishes automatically)\n" %
+        duration = "%s" % self.params['stopVal']  # type is code
+        if not len(duration):
+            duration = "0"
+        # starting condition: 
+        buff.writeIndented("\n")
+        buff.writeIndented("# *%s* updates\n" %(self.params['name']))
+        self.writeStartTestCode(buff)  # writes an if statement
+        buff.writeIndented("%(name)s.status = STARTED\n" %(self.params))
+        buff.writeIndented("%s.record(sec=%s, block=False)  # start the recording thread\n" %
                             (self.params['name'], duration))
+        buff.setIndentLevel(-1, relative=True)  # ends the if statement
+        buff.writeIndented("\n")
+        # these lines handle both normal end of rec thread, and user .stop():
+        buff.writeIndented("if %(name)s.status == STARTED and not %(name)s.recorder.running:\n" % self.params)
         buff.writeIndented("    %s.status = FINISHED\n" % self.params['name'])
     def writeRoutineEndCode(self,buff):
         #some shortcuts
         name = self.params['name']
-        #store = self.params['store'].val
         if len(self.exp.flow._loopList):
             currLoop = self.exp.flow._loopList[-1] #last (outer-most) loop
         else: currLoop=None
 
         #write the actual code
         if currLoop: #need a loop to do the storing of data!
-            buff.writeIndented("#check responses\n" %self.params)
+            buff.writeIndented("# check responses\n" %self.params)
             buff.writeIndented("if not %(name)s.savedFile:\n"%self.params)
             buff.writeIndented("    %(name)s.savedFile = None\n" %(self.params))
-            buff.writeIndented("#store data for %s (%s)\n" %(currLoop.params['name'], currLoop.type))
-        
+            buff.writeIndented("# store data for %s (%s)\n" %(currLoop.params['name'], currLoop.type))
+
             #always add saved file name
             buff.writeIndented("%s.addData('%s.filename', %s.savedFile)\n" % (currLoop.params['name'],name,name))
             #only add loudness / rms if we have a file
