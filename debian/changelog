@@ -5,8 +5,13 @@ psychopy (1.76.00.dfsg-1) experimental; urgency=low
     - added python-pyo to recommends
   * debian/copyright:
     - updated years
+  * debian/patches
+    - up* and changeset* removed (since included upstream)
+    - deb_no_post_inst updated to not install psychopyApp as a script:
+      we have a lean script to invoke it via runpy, and we call it just
+      psychopy
 
- -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 18 Feb 2013 11:35:21 -0500
+ -- Yaroslav Halchenko <debian@onerussian.com>  Mon, 18 Feb 2013 12:23:31 -0500
 
 psychopy (1.74.03.dfsg-1) experimental; urgency=low
 

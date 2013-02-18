@@ -1,5 +1,3 @@
-changeset_4562cda7af19091df86dc209083b3640b655a5fa.diff
-up_Linux_components_path
 deb_do_not_regenerate_init
 deb_no_post_inst
 deb_use_system_serial
