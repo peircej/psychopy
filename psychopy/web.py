@@ -16,26 +16,10 @@ from builtins import object
 import sys
 import socket
 import re
-from psychopy import logging
-from psychopy.constants import PSYCHOPY_USERAGENT, PY3
+from psychopy import logging, constants
 from psychopy import prefs
 
-
-if PY3:
-    import urllib.request
-    import urllib.error
-    import urllib.parse
-else:
-    import urllib2
-    # import urllib.request, urllib.error, urllib.parse
-
-    class FakeURLlib(object):
-
-        def __init__(self, lib):
-            self.request = lib
-            self.error = lib
-            self.parse = lib
-    urllib = FakeURLlib(urllib2)
+import requests
 
 # default 20s from prefs, min 2s
 TIMEOUT = max(prefs.connections['timeout'], 2.0)
@@ -43,6 +27,10 @@ socket.setdefaulttimeout(TIMEOUT)
 
 # global proxies
 proxies = None  # if this is populated then it has been set up already
+headers = {
+    'user-agent': constants.PSYCHOPY_USERAGENT
+}
+session = requests.session()
 
 
 class NoInternetAccessError(Exception):
@@ -50,6 +38,18 @@ class NoInternetAccessError(Exception):
     """
 # global haveInternet
 haveInternet = None  # gets set True or False when you check
+
+
+def setSessionProxy(proxiesDict):
+    """
+
+    Parameters
+    ----------
+    proxiesDict : dictionary of proxies (e.g. {'https':'https://proxyplace.com'})
+
+    """
+    global session
+    session.proxies = proxiesDict
 
 
 def haveInternetAccess(forceCheck=False):
@@ -60,14 +60,15 @@ def haveInternetAccess(forceCheck=False):
     global haveInternet
     if forceCheck or haveInternet is None:
         # try to connect to a high-availability site
-        sites = ["http://www.google.com/", "http://www.opendns.com/"]
+        sites = ["https://www.google.com/", "https://www.google.co.uk/"]
         for wait in [0.3, 0.7]:  # try to be quick first
             for site in sites:
                 try:
-                    urllib.request.urlopen(site, timeout=wait)
-                    haveInternet = True  # cache
-                    return True  # one success is good enough
-                except Exception:  # urllib.error.URLError:
+                    r = requests.get(site, timeout=wait)
+                    if r.status_code == 200:
+                        haveInternet = True  # cache
+                        return True  # one success is good enough
+                except (requests.ConnectionError, requests.ConnectTimeout):
                     #  socket.timeout() can also happen
                     pass
         else:
@@ -95,20 +96,18 @@ def tryProxy(handler, URL=None):
     :Returns:
 
         - True (success)
-        - a `urllib.error.URLError` (which can be interrogated with `.reason`)
-        - a `urllib.error.HTTPError` (which can be interrogated with `.code`)
+        - a `requests.ConnectionError`
 
     """
     if URL is None:
         URL = 'http://www.google.com'  # hopefully google isn't down!
-    req = urllib.request.Request(URL)
-    opener = urllib.request.build_opener(handler)
     try:
-        opener.open(req, timeout=2).read(5)  # open and read a few characters
-        return True
-    except urllib.error.URLError as err:
-        return err
-    except urllib.error.HTTPError as err:
+        r = requests.get(URL, proxies=handler, timeout=2)
+        if r.status_code == 200:
+            global haveInternet
+            haveInternet = True
+            return True
+    except (requests.ConnectionError, requests.ConnectTimeout) as err:
         return err
 
 
@@ -185,8 +184,8 @@ def proxyFromPacFiles(pacURLs=None, URL=None, log=True):
 
     :Returns:
 
-        - A urllib.request.ProxyHandler if successful (and this will have
-          been added as an opener to the urllib)
+        - A proxy dict if successful (and this will have
+          been added as an opener to the web.session)
         - False if no proxy was found in the files that allowed successful
           connection
     """
@@ -201,34 +200,33 @@ def proxyFromPacFiles(pacURLs=None, URL=None, log=True):
             msg = 'proxyFromPacFiles is searching file:\n  %s'
             logging.debug(msg % thisPacURL)
         try:
-            response = urllib.request.urlopen(thisPacURL, timeout=2)
-        except urllib.error.URLError:
+            r = requests.get(thisPacURL, timeout=2)
+        except (requests.ConnectTimeout, requests.ConnectionError):
             if log:
                 logging.debug("Failed to find PAC URL '%s' " % thisPacURL)
             continue
-        pacStr = response.read().decode('utf-8')
+        pacStr = r.text
         # find the candidate PROXY strings (valid URLS), numeric and
         # non-numeric:
         pattern = r"PROXY\s([^\s;,:]+:[0-9]{1,5})[^0-9]"
         possProxies = re.findall(pattern, pacStr + '\n')
         for thisPoss in possProxies:
-            proxUrl = 'http://' + thisPoss
-            handler = urllib.request.ProxyHandler({'http': proxUrl})
+            proxUrl = 'https://' + thisPoss
+            handler = {'https': proxUrl}
             if tryProxy(handler) == True:
                 if log:
                     logging.debug('successfully loaded: %s' % proxUrl)
-                opener = urllib.request.build_opener(handler)
-                urllib.request.install_opener(opener)
+                setSessionProxy(handler)
                 return handler
     return False
 
 
 def setupProxy(log=True):
-    """Set up the urllib proxy if possible.
+    """Set up the requests proxy if possible.
 
      The function will use the following methods in order to try and
      determine proxies:
-        #. standard urllib.request.urlopen (which will use any
+        #. standard requests.get (which will use any
            statically-defined http-proxy settings)
         #. previous stored proxy address (in prefs)
         #. proxy.pac files if these have been added to system settings
@@ -245,60 +243,41 @@ def setupProxy(log=True):
     """
     global proxies
     # try doing nothing
-    proxies = urllib.request.ProxyHandler(urllib.request.getproxies())
+    proxies = None
     if tryProxy(proxies) is True:
         if log:
-            logging.debug("Using standard urllib (static proxy or "
+            logging.debug("Using standard requests (static proxy or "
                           "no proxy required)")
-        # this will now be used globally for ALL urllib opening
-        urllib.request.install_opener(urllib.request.build_opener(proxies))
         return 1
 
-    # try doing what we did last time
+    # try doing what we did on previous app instance (stored in prefs)
     if len(prefs.connections['proxy']) > 0:
-        proxConnPref = {'http': prefs.connections['proxy']}
-        proxies = urllib.request.ProxyHandler(proxConnPref)
+        proxies = {'https': prefs.connections['proxy']}
         if tryProxy(proxies) is True:
             if log:
                 msg = 'Using %s (from prefs)'
                 logging.debug(msg % prefs.connections['proxy'])
-            # this will now be used globally for ALL urllib opening
-            opener = urllib.request.build_opener(proxies)
-            urllib.request.install_opener(opener)
+            setSessionProxy(proxies)
             return 1
         else:
             if log:
                 logging.debug("Found a previous proxy but it didn't work")
 
     # try finding/using a proxy.pac file
-    pacURLs = getPacFiles()
-    if log:
-        logging.debug("Found proxy PAC files: %s" % pacURLs)
-    proxies = proxyFromPacFiles(pacURLs)  # installs opener, if successful
-    if (proxies and
-            hasattr(proxies, 'proxies') and
-            len(proxies.proxies['http']) > 0):
-        # save that proxy for future
-        prefs.connections['proxy'] = proxies.proxies['http']
-        prefs.saveUserPrefs()
+    for pacURLs in getPacFiles()+getWpadFiles():
         if log:
-            msg = 'Using %s (from proxy PAC file)'
-            logging.debug(msg % prefs.connections['proxy'])
-        return 1
-
-    # try finding/using 'auto-detect proxy'
-    pacURLs = getWpadFiles()
-    proxies = proxyFromPacFiles(pacURLs)  # installs opener, if successful
-    if (proxies and
-            hasattr(proxies, 'proxies') and
-            len(proxies.proxies['http']) > 0):
-        # save that proxy for future
-        prefs.connections['proxy'] = proxies.proxies['http']
-        prefs.saveUserPrefs()
-        if log:
-            msg = 'Using %s (from proxy auto-detect)'
-            logging.debug(msg % prefs.connections['proxy'])
-        return 1
+            logging.debug("Found proxy PAC files: %s" % pacURLs)
+        proxies = proxyFromPacFiles(pacURLs)  # installs opener, if successful
+        if (proxies and
+                hasattr(proxies, 'proxies') and
+                len(proxies.proxies['https']) > 0):
+            # save that proxy for future
+            prefs.connections['proxy'] = proxies.proxies['https']
+            prefs.saveUserPrefs()
+            if log:
+                msg = 'Using %s (from proxy PAC file and auto-detect)'
+                logging.debug(msg % prefs.connections['proxy'])
+            return 1
 
     proxies = 0
     return 0
