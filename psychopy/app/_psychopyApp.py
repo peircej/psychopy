@@ -13,6 +13,7 @@ from builtins import object
 profiling = False  # turning on will save profile files in currDir
 
 import sys
+import atexit
 import psychopy
 from pkg_resources import parse_version
 from psychopy.constants import PY3
@@ -55,6 +56,13 @@ if not PY3 and sys.platform == 'darwin':
     blockTips = True
 else:
     blockTips = False
+
+_appInstances = []
+
+@atexit.register
+def quitAllInstances():
+    for appInstance in _appInstances:
+        appInstance.quit()
 
 
 class MenuFrame(wx.Frame):
@@ -143,6 +151,9 @@ class PsychoPyApp(wx.App):
             profile = cProfile.Profile()
             profile.enable()
             t0 = time.time()
+
+        global _appInstances
+        _appInstances.append(self)
 
         self._appLoaded = False  # set to true when all frames are created
         self.coder = None
