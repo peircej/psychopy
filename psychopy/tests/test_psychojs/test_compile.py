@@ -47,11 +47,10 @@ class Test_PsychoJS_from_Builder(object):
         self.builderView = self.app.newBuilderFrame()
 
     def teardown_class(self):
+        self.builderView.closeFrame()
         if not keepFiles:
             shutil.rmtree(self.temp_dir)
 
-        del self.builderView
-        del self.app
 
     def writeScript(self, exp, outFolder):
         script = exp.writeScript(expPath=outFolder, target="PsychoJS")
