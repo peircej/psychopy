@@ -43,6 +43,7 @@ from psychopy.localization import _translate
 from psychopy import preferences, logging, __version__
 from psychopy import projects
 from . import connections
+from . import runner
 from .utils import FileDropTarget
 import os
 import weakref
@@ -70,21 +71,28 @@ class MenuFrame(wx.Frame):
 
         self.viewMenu = wx.Menu()
         self.menuBar.Append(self.viewMenu, _translate('&View'))
-        mtxt = _translate("&Open Builder view\t%s")
-        self.app.IDs.openBuilderView = self.viewMenu.Append(wx.ID_ANY,
-                             mtxt % self.app.keys['switchToBuilder'],
-                             _translate("Open a new Builder view")).GetId()
+        mtxt = _translate("Open &Builder view\t%s")
+        self.app.IDs.openBuilderView = self.viewMenu.Append(
+            wx.ID_ANY,
+            mtxt % self.app.keys['switchToBuilder'],
+            _translate("Open a new Builder view")).GetId()
         self.Bind(wx.EVT_MENU, self.app.showBuilder,
                   id=self.app.IDs.openBuilderView)
-        mtxt = _translate("&Open Coder view\t%s")
-        self.app.IDs.openCoderView = self.viewMenu.Append(wx.ID_ANY,
-                             mtxt % self.app.keys['switchToCoder'],
-                             _translate("Open a new Coder view")).GetId()
-        self.Bind(wx.EVT_MENU, self.app.showCoder,
-                  id=self.app.IDs.openCoderView)
+        mtxt = _translate("Open &Coder view\t%s")
+        self.app.IDs.openCoderView = self.viewMenu.Append(
+            wx.ID_ANY,
+            mtxt % self.app.keys['switchToCoder'],
+            _translate("Open a new Coder view")).GetId()
+        thisID = self.viewMenu.Append(
+            wx.ID_ANY,
+            _translate("Open &Runner view"),
+            _translate("Open the Runner view")).GetId()
+        self.Bind(wx.EVT_MENU, self.app.showRunner,
+                  id=thisID)
         mtxt = _translate("&Quit\t%s")
-        item = self.viewMenu.Append(wx.ID_EXIT, mtxt % self.app.keys['quit'],
-                                    _translate("Terminate the program"))
+        item = self.viewMenu.Append(
+            wx.ID_EXIT, mtxt % self.app.keys['quit'],
+            _translate("Terminate the program"))
         self.Bind(wx.EVT_MENU, self.app.quit, id=item.GetId())
         self.SetMenuBar(self.menuBar)
         self.Show()
@@ -518,6 +526,15 @@ class PsychoPyApp(wx.App):
     #    self.shell.Raise()
     #    self.SetTopWindow(self.shell)
     #    self.shell.SetFocus()
+
+    def showRunner(self, event=None, fileList=None):
+        runnerFrame = runner.RunnerFrame(parent=None, ID=wx.ID_ANY,
+                                         files=fileList,
+                                         app=self)
+        self.trackFrame(runnerFrame)
+        runnerFrame.Show(True)
+        runnerFrame.Raise()
+        self.SetTopWindow(runnerFrame)
 
     def OnDrop(self, x, y, files):
         """Not clear this method ever gets called!"""

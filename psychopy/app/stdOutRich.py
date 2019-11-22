@@ -16,7 +16,8 @@ class StdOutRich(wx.richtext.RichTextCtrl):
     """A rich text ctrl for handling stdout/stderr
     """
 
-    def __init__(self, parent, style, size=None, font=None, fontSize=None):
+    def __init__(self, parent, style, size=None, font=None, fontSize=None,
+                 frame=None):
         kwargs = {'parent': parent, 'style': style}
         if size is not None:
             kwargs['size'] = size
@@ -29,7 +30,9 @@ class StdOutRich(wx.richtext.RichTextCtrl):
             self.BeginFont(currFont)
 
         self.parent = parent
-        self.Bind(wx.EVT_TEXT_URL, parent.onURL)
+        if frame is None:
+            frame = self.parent
+        self.Bind(wx.EVT_TEXT_URL, frame.onURL)
         # define style for filename links (URLS) needs wx as late as 2.8.4.0
         # self.urlStyle = wx.richtext.RichTextAttr()
         # self.urlStyle.SetTextColour(wx.BLUE)

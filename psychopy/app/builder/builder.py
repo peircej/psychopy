@@ -1510,6 +1510,11 @@ class BuilderFrame(wx.Frame):
                                'switchToCoder'],
                            _translate("Open a new Coder view"))
         self.Bind(wx.EVT_MENU, self.app.showCoder, item)
+        thisID = self.viewMenu.Append(wx.ID_ANY,
+                                      _translate("Open &Runner view"),
+                                      _translate("Open Runner view")).GetId()
+        self.Bind(wx.EVT_MENU, self.app.showRunner,
+                  id=thisID)
         item = menu.Append(wx.ID_ANY,
                            _translate("&Toggle readme\t%s") % self.app.keys[
                                'toggleReadme'],

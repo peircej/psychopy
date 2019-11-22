@@ -1625,10 +1625,17 @@ class CoderFrame(wx.Frame):
         menu.AppendSeparator()
 
         key = self.app.keys['switchToBuilder']
-        item = menu.Append(wx.ID_ANY,
-                           _translate("Go to &Builder view\t%s") % key,
-                           _translate("Go to the Builder view"))
+        item = menu.Append(
+            wx.ID_ANY,
+            _translate("Open &Builder view\t%s") % key,
+            _translate("Open the Builder view"))
         self.Bind(wx.EVT_MENU, self.app.showBuilder, id=item.GetId())
+        thisID = self.viewMenu.Append(
+            wx.ID_ANY,
+            _translate("Open &Runner view"),
+            _translate("Open Runner view")).GetId()
+        self.Bind(wx.EVT_MENU, self.app.showRunner,
+                  id=thisID)
         # self.viewMenu.Append(self.IDs.openShell,
         #   "Go to &IPython Shell\t%s" %self.app.keys['switchToShell'],
         #   "Go to a shell window for interactive commands")

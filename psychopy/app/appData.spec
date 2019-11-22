@@ -48,6 +48,15 @@ prevFiles = list(default=list())  #file open on last quit
     state = option('normal','maxim', default='normal')
     lastOpened = integer(default=0)
 
+[runner]
+fileHistory = list(default=list())  #files in history
+winX = integer(default=50)
+winY = integer(default=50)
+winH = integer(default=600)
+winW = integer(default=800)
+auiPerspective = string(default='')
+state = option('normal','maxim', default='normal')
+
 [projects]
 fileHistory = list(default=list())  #files in history
 prevFiles = list(default=list())  #file open on last quit
