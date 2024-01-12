@@ -1318,6 +1318,11 @@ class CoderFrame(BaseAuiFrame, handlers.ThemeMixin):
 
         self.theme = colors.theme
 
+        # disable save buttons if currentDoc is None
+        if self.currentDoc is None:
+            self.ribbon.buttons['save'].Disable()
+            self.ribbon.buttons['saveas'].Disable()
+
     @property
     def useAutoComp(self):
         """Show autocomplete while typing."""
@@ -2392,6 +2397,7 @@ class CoderFrame(BaseAuiFrame, handlers.ThemeMixin):
     def fileSave(self, event=None, filename=None, doc=None):
         """Save a ``doc`` with a particular ``filename``.
         If ``doc`` is ``None`` then the current active doc is used.
+        If the current active doc is also ``None``, then quit early.
         If the ``filename`` is ``None`` then the ``doc``'s current filename
         is used or a dlg is presented to get a new filename.
         """
@@ -2400,6 +2406,8 @@ class CoderFrame(BaseAuiFrame, handlers.ThemeMixin):
                 self.currentDoc.AutoCompCancel()
 
         if doc is None:
+            if self.currentDoc is None:
+                return
             doc = self.currentDoc
         if filename is None:
             filename = doc.filename
