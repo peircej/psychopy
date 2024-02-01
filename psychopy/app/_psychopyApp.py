@@ -609,7 +609,7 @@ class PsychoPyApp(wx.App, handlers.ThemeMixin):
                     "Failed to open Coder with requested scripts, opening with no scripts open.\n"
                     "Requested: {}\n"
                     "Err: {}"
-                ).format(scripts, traceback.format_exception_only(err)))
+                ).format(scripts, traceback.format_exception(err)))
                 logging.debug(
                     "\n".join(traceback.format_exception(err))
                 )
@@ -626,7 +626,7 @@ class PsychoPyApp(wx.App, handlers.ThemeMixin):
                     "Failed to open Builder with requested experiments, opening with no experiments open.\n"
                     "Requested: {}\n"
                     "Err: {}"
-                ).format(exps, traceback.format_exception_only(err)))
+                ).format(exps, traceback.format_exception(err)))
                 logging.debug(
                     "\n".join(traceback.format_exception(err))
                 )
