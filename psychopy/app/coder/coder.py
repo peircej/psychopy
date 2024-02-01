@@ -2240,6 +2240,10 @@ class CoderFrame(BaseAuiFrame, handlers.ThemeMixin):
                     dlg.ShowModal()
                     dlg.Destroy()
                     return
+                except TimeoutError:
+                    logging.error(f"File {filename} was too slow to load so skipping "
+                                  f"(cloud file not locally cached?)")
+                    return
             elif filename == '':
                 pass  # user requested a new document
             else:
