@@ -173,6 +173,9 @@ class PsychoPyApp(wx.App, handlers.ThemeMixin):
             profile.enable()
             t0 = time.time()
 
+        from . import setAppInstance
+        setAppInstance(self)
+
         self._appLoaded = False  # set to true when all frames are created
         self.builder = None
         self.coder = None
@@ -829,8 +832,11 @@ class PsychoPyApp(wx.App, handlers.ThemeMixin):
             self.updateWindowMenu()
             wx.EndBusyCursor()
         else:
-            # Set output window and standard streams
+            # set output window and standard streams
             self.coder.setOutputWindow(True)
+            # open file list
+            for file in fileList:
+                self.coder.fileOpen(filename=file)
         self.coder.Show(True)
         self.SetTopWindow(self.coder)
         self.coder.Raise()
