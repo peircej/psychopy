@@ -141,11 +141,12 @@ if sys.version_info < (3, 9):
     excludes.append('PyQt6')
 
 # check the includes and packages are all available
+missing_pkgs = []
 for pkg in includes+packages:
-    missing_pkgs = []
+    
     try:
         importlib.import_module(pkg)
-    except ImportError:
+    except (ImportError, ModuleNotFoundError):
         missing_pkgs.append(pkg)
 if missing_pkgs:
     raise ImportError("Missing packages: %s" % missing_pkgs)
