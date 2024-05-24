@@ -63,12 +63,14 @@ if parse_version(macholib.__version__) <= parse_version('1.7'):
     macholib.MachOGraph.dyld_find = dyld_find
 
 excludes = ['bsddb', 'jinja2', 'IPython','ipython_genutils','nbconvert',
-            'libsz.2.dylib', 'pygame',
-            'functools32',
-            'sympy',
-            '/usr/lib/libffi.dylib',
-            'libwebp.7.dylib'
-            ]
+                      'tkinter', 'Tkinter', 'tcl',
+                      'libsz.2.dylib', 'pygame',
+                      # 'stringprep',
+                      'functools32',
+                      'sympy',
+                      '/usr/lib/libffi.dylib',
+                      'libwebp.7.dylib'
+                      ]
 includes = ['_sitebuiltins',  # needed for help()
             'imp', 'subprocess', 'shlex',
             'shelve',  # for scipy.io
@@ -145,15 +147,41 @@ if sys.version_info < (3, 9):
     excludes.append('PyQt6')
 
 # check the includes and packages are all available
-missing_pkgs = []
+missingPkgs = []
+pipInstallLines = ''
+packagePipNames = { # packages that are imported as one thing but installed as another
+    'OpenGL': 'pyopengl',
+    'opencv': 'opencv-python',
+    'googleapiclient': 'google-api-python-client',
+    'macropy': 'macropy3',
+
+}
 for pkg in includes+packages:
     
     try:
         importlib.import_module(pkg)
-    except (ImportError, ModuleNotFoundError):
-        missing_pkgs.append(pkg)
-if missing_pkgs:
-    raise ImportError("Missing packages: %s" % missing_pkgs)
+    except ModuleNotFoundError:
+        if pkg in packagePipNames:
+            missingPkgs.append(packagePipNames[pkg])
+        elif pkg == 'pylink':
+            pipInstallLines += 'pip install --index-url=https://pypi.sr-support.com sr-research-pylink\n'
+        else:
+            missingPkgs.append(pkg)
+    except OSError as err:
+        if 'libftd2xx.dylib' in str(err):
+            raise ImportError(f"Missing package: ftd2xx. Please install the FTDI D2XX drivers from "
+                              "https://www.ftdichip.com/Drivers/D2XX.htm")
+    except ImportError as err:
+        if 'eyelink' in str(err):
+            raise ImportError(f"It looks like the Eyelink dev kit is not installed "
+                              "https://www.sr-research.com/support/thread-13.html")
+
+if missingPkgs or pipInstallLines:
+    helpStr = f"You're missing some packages to include in standalone. Fix with:\n"
+    if missingPkgs:
+        helpStr += f"pip install {' '.join(missingPkgs)}\n"
+    helpStr += pipInstallLines
+    raise ImportError(helpStr)
 else:
     print("All packages appear to be present. Proceeding to build...")
 
