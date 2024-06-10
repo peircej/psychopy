@@ -212,8 +212,7 @@ class ParamCtrls():
         elif param.inputType == 'table':
             self.valueCtrl = paramCtrls.TableCtrl(
                 parent, 
-                val=param.val, 
-                valType=param.valType,
+                param=param,
                 fieldName=fieldName, 
                 size=wx.Size(int(self.valueWidth), 24))
         elif param.inputType == 'color':
@@ -522,6 +521,9 @@ class StartStopCtrls(wx.GridBagSizer):
             self.estimLabel.Show(visible)
         if hasattr(self, "label"):
             self.label.Show(visible)
+        # show/hide dollars
+        if hasattr(self, "dollar"):
+            self.dollar.Show(visible)
         # Set value to None if hidden (specific to start/stop)
         if not visible:
             if "startVal" in self.ctrls:
