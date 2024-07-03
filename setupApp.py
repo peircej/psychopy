@@ -87,7 +87,7 @@ includes = ['_sitebuiltins',  # needed for help()
             'configparser',
             'ntplib',  # for egi-pynetstation
             ]
-packages = ['pydoc',  # needed for help()
+packages = ['pydoc',  # needed for help() actually that still doesn't work in app
             'setuptools', 'wheel', # for plugin installing
             'wx', 'psychopy',
             'PyQt6',
