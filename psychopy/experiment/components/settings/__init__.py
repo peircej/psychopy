@@ -43,7 +43,7 @@ _numpyRandomImports = ['random', 'randint', 'normal', 'shuffle', 'choice as rand
 
 # this is not a standard component - it will appear on toolbar not in
 # components panel
-ioDeviceMap = dict(ioUtil.getDeviceNames())
+ioDeviceMap = dict(ioUtil.getDeviceNames(device_name="eyetracker.hw"))
 ioDeviceMap['None'] = ""
 
 # Keyboard backend options
@@ -119,8 +119,10 @@ class SettingsComponent:
             plCompanionAddress="neon.local",
             plCompanionPort=8080,
             plCompanionRecordingEnabled=True,
+            ecSampleRate='default',
             keyboardBackend="ioHub",
-            filename=None, exportHTML='on Sync', endMessage=''
+            filename=None, exportHTML='on Sync',
+            endMessage=_translate("Thank you for your patience.")
     ):
         self.type = 'Settings'
         self.exp = exp  # so we can access the experiment if necess
@@ -541,6 +543,7 @@ class SettingsComponent:
                            "plPupilRemoteAddress", "plPupilRemotePort", "plPupilRemoteTimeoutMs",
                            "plPupilCaptureRecordingEnabled", "plPupilCaptureRecordingLocation"],
             "Pupil Labs (Neon)": ["plCompanionAddress", "plCompanionPort", "plCompanionRecordingEnabled"],
+            "EyeLogic": ["ecSampleRate"],
         }
         for tracker in trackerParams:
             for depParam in trackerParams[tracker]:
@@ -755,6 +758,13 @@ class SettingsComponent:
             plCompanionRecordingEnabled, valType='bool', inputType="bool",
             hint=_translate("Recording enabled"),
             label=_translate("Recording enabled"), categ="Eyetracking"
+        )
+
+        # EyeLogic
+        self.params['ecSampleRate'] = Param(
+            ecSampleRate, valType='str', inputType="single",
+            hint=_translate("Eyetracker sampling rate: 'default' or <integer>[Hz]. Defaults to tracking mode '0'."),
+            label=_translate("Sampling rate"), categ="Eyetracking"
         )
 
         # Input
@@ -1646,6 +1656,22 @@ class SettingsComponent:
                 )
                 buff.writeIndentedLines(code % inits)
 
+            elif self.params['eyetracker'] == "EyeLogic":
+                code = (
+                    "'runtime_settings': {\n"
+                )
+                buff.writeIndentedLines(code % inits)
+                buff.setIndentLevel(1, relative=True)
+                code = (
+                    "'sampling_rate': %(ecSampleRate)s,\n"
+                )
+                buff.writeIndentedLines(code % inits)
+                buff.setIndentLevel(-1, relative=True)
+                code = (
+                    "}\n"
+                )
+                buff.writeIndentedLines(code % inits)
+
             # Close ioDevice dict
             buff.setIndentLevel(-1, relative=True)
             code = (
@@ -1845,7 +1871,7 @@ class SettingsComponent:
             "if expInfo is not None:\n"
             "    # get/measure frame rate if not already in expInfo\n"
             "    if win._monitorFrameRate is None:\n"
-            "        win.getActualFrameRate(infoMsg=%(frameRateMsg)s)\n"
+            "        win._monitorFrameRate = win.getActualFrameRate(infoMsg=%(frameRateMsg)s)\n"
             "    expInfo['frameRate'] = win._monitorFrameRate\n"
             )
             buff.writeIndentedLines(code % params)
@@ -1985,11 +2011,11 @@ class SettingsComponent:
             "if thisExp.status != PAUSED:\n"
             "    return\n"
             "\n"
+            "# start a timer to figure out how long we're paused for\n"
+            "pauseTimer = core.Clock()\n"
             "# pause any playback components\n"
             "for comp in playbackComponents:\n"
             "    comp.pause()\n"
-            "# prevent components from auto-drawing\n"
-            "win.stashAutoDraw()\n"
             "# make sure we have a keyboard\n"
             "defaultKeyboard = deviceManager.getDevice('defaultKeyboard')\n"
             "if defaultKeyboard is None:\n"
@@ -2008,19 +2034,17 @@ class SettingsComponent:
             "        endExperiment(thisExp, win=win)\n"
             )
         code += (
-            "    # flip the screen\n"
-            "    win.flip()\n"
+            "    # sleep 1ms so other threads can execute\n"
+            "    clock.time.sleep(0.001)\n"
             "# if stop was requested while paused, quit\n"
             "if thisExp.status == FINISHED:\n"
             "    endExperiment(thisExp, win=win)\n"
             "# resume any playback components\n"
             "for comp in playbackComponents:\n"
             "    comp.play()\n"
-            "# restore auto-drawn components\n"
-            "win.retrieveAutoDraw()\n"
             "# reset any timers\n"
             "for timer in timers:\n"
-            "    timer.reset()\n"
+            "    timer.addTime(-pauseTimer.getTime())\n"
         )
         buff.writeIndentedLines(code % self.params)
 
@@ -2063,9 +2087,6 @@ class SettingsComponent:
             "logging.console.setLevel(logging.WARNING)\n"
             "# mark experiment handler as finished\n"
             "thisExp.status = FINISHED\n"
-            "# shut down eyetracker, if there is one\n"
-            "if deviceManager.getDevice('eyetracker') is not None:\n"
-            "    deviceManager.removeDevice('eyetracker')\n"
         )
         if self.params['Save log file'].val:
             code += (
@@ -2102,9 +2123,6 @@ class SettingsComponent:
             "    # and win.timeOnFlip() tasks get executed before quitting\n"
             "    win.flip()\n"
             "    win.close()\n"
-            "# shut down eyetracker, if there is one\n"
-            "if deviceManager.getDevice('eyetracker') is not None:\n"
-            "    deviceManager.removeDevice('eyetracker')\n"
         )
         if self.params['Save log file'].val:
             code += (

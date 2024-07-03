@@ -1262,6 +1262,31 @@ class TrialHandler2(_BaseTrialHandler):
         self.thisTrial = rewound.pop(0)
         # prepend rewound trials to upcoming array
         self.upcomingTrials = rewound + self.upcomingTrials
+    
+    def getCurrentTrial(self):
+        """
+        Returns the current trial (`.thisTrial`)
+
+        Returns
+        -------
+        Trial
+            The current trial
+        """
+        return self.thisTrial
+    
+    def getAllTrials(self):
+        """
+        Returns all trials (elapsed, current and upcoming) with an index indicating which trial is 
+        the current trial.
+
+        Returns
+        -------
+        list[Trial]
+            List of trials, in order (oldest to newest)
+        int
+            Index of the current trial in this list
+        """
+        return (self.elapsedTrials or []) + [self.thisTrial] + (self.upcomingTrials or []), len(self.elapsedTrials)
 
     def getFutureTrial(self, n=1):
         """
@@ -1278,7 +1303,7 @@ class TrialHandler2(_BaseTrialHandler):
         if isinstance(n, str) and n.isnumeric():
             n = int(n)
         # return None if requesting beyond last trial
-        if n > len(self.upcomingTrials):
+        if self.upcomingTrials is None or n > len(self.upcomingTrials):
             return None
         # return the corresponding trial from upcoming trials array
         return self.upcomingTrials[n-1]
@@ -1302,6 +1327,9 @@ class TrialHandler2(_BaseTrialHandler):
         list[Trial or None]
             List of Trial objects n long. Any trials beyond the last trial are None.
         """
+        # if there are no future trials, return a blank list
+        if self.upcomingTrials is None:
+            return []
         # if None, get all future trials
         if n is None:
             n = len(self.upcomingTrials) - start
@@ -1325,7 +1353,7 @@ class TrialHandler2(_BaseTrialHandler):
         if n > 0:
             n = n * -1
         # return None if requesting before first trial
-        if abs(n) > len(self.upcomingTrials):
+        if self.upcomingTrials is None or abs(n) > len(self.upcomingTrials):
             return None
         # return the corresponding trial from elapsed trials array
         return self.elapsedTrials[n]
