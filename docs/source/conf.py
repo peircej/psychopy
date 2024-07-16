@@ -24,6 +24,11 @@ docs_folder = pathlib.Path(__file__).parent.parent
 
 # -- General configuration -----------------------------------------------------
 
+# General information about the project.
+project = u'PsychoPy'
+copyright = u'2002-18, Jonathan Peirce; 2019-24 Open Science Tools Ltd.'
+html_context = {'recommended_version': "2024.2.0"}
+
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = ['sphinx.ext.autodoc',
@@ -33,7 +38,9 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.mathjax',
               'sphinx.ext.napoleon',
               'sphinx.ext.intersphinx',
-              'sphinx.ext.viewcode']
+              'sphinx.ext.viewcode',
+              "myst_parser", "sphinx_design"]
+myst_enable_extensions = ["colon_fence"]
 
 autoclass_content = 'both'
 autosummary_generate = True
@@ -56,10 +63,6 @@ source_suffix = '.rst'
 
 # The master toctree document.
 master_doc = 'documentation'
-
-# General information about the project.
-project = u'PsychoPy'
-copyright = u'2002-18, Jonathan Peirce; 2019-21 Open Science Tools Ltd.'
 
 # use restructured text epilog to get around problem with not being able to use replace and superscript together
 rst_epilog = """
