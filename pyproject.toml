@@ -124,7 +124,6 @@ suggested = [
     "Phidget22",
 ]
 legacy = [
-    "pyo>=1.0.3",
     "pyglfw",
     "pygame",
 ]
