@@ -27,25 +27,20 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         
+    - name: get_month
+      id: month
+      run: echo "month=$(date +'%Y-%m')" >> "$GITHUB_OUTPUT"
+
     - name: Install UV
       uses: astral-sh/setup-uv@v7
       with:
         activate-environment: true
-        enable-cache: true
+        enable-cache: auto
+        prune-cache: false
+        # rotate the cache monthly: bounds cache growth/staleness while still
+        # giving hits (and sparing extras.wxpython.org) within a given month
+        cache-suffix: ${{ steps.month.outputs.month }}
 
-    - name: get_month
-      if: runner.os=='Linux'
-      id: month
-      run: echo "month=$(date +'%Y-%m')" >> "$GITHUB_OUTPUT"
-  
-    # NB no effect if we use uv to do the installation, only affects pip installs
-    - name: cache wxPython for linux
-      if: runner.os=='Linux'
-      uses: actions/cache@v5
-      with:
-        path: ~/.cache/pip
-        key: ${{ matrix.os }}-py${{ matrix.python-version }}-${{ steps.month.outputs.month }}
-        
     - name: Install Linux system dependencies
       if: runner.os=='Linux'
       run: |
